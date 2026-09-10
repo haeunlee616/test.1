@@ -1,0 +1,74 @@
+/* ============================================
+   색 팔레트 — 여기서만 색을 정하고, 나머지는 전부 여기서 가져다 씀
+   ============================================ */
+:root {
+  --color-bg: #0a0c12;        /* 아주 어두운 남색 (완전한 검정 아님) */
+  --color-cool: #29f1ff;      /* 형광 시안 — 차갑고 날카로운 잔상 */
+  --color-warm: #ff2e6e;      /* 형광 마젠타핑크 — 뜨겁고 강렬한 잔상 */
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  background: var(--color-bg);
+  cursor: none;
+  touch-action: none; /* 휴대폰에서 손가락으로 문질러도 화면이 스크롤·확대되지 않게 함 */
+}
+
+#stage {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+#stars,
+#shape,
+#trail,
+#head {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.glow {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(4vmin);
+  opacity: 0.35;
+  animation: breathe 17s ease-in-out infinite;
+}
+
+.glow--cool {
+  width: 20vmin;
+  height: 20vmin;
+  top: 32%;
+  left: 22%;
+  background: var(--color-cool);
+}
+
+.glow--warm {
+  width: 17vmin;
+  height: 17vmin;
+  top: 46%;
+  left: 58%;
+  background: var(--color-warm);
+  animation-duration: 13s;   /* 두 빛이 같은 박자로 숨 쉬지 않도록 주기를 다르게 둠 */
+  animation-delay: -4s;
+}
+
+/* 아무 반응이 없어도 화면이 완전히 멈춰 보이지 않도록, 아주 느리고 미세하게 밝기·크기가 오르내림 */
+@keyframes breathe {
+  0%, 100% { opacity: 0.35; transform: scale(1); }
+  50% { opacity: 0.45; transform: scale(1.03); }
+}

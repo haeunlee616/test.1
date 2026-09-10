@@ -1,0 +1,12 @@
+{
+  "name": "afterimage-site",
+  "version": "1.0.0",
+  "private": true,
+  "description": "잔상을 주제로 한 화면 하나짜리 작품을 Express로 제공",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}
