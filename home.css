@@ -1,0 +1,237 @@
+@font-face {
+  font-family: "American Typewriter";
+  src: url("fonts/AmericanTypewriter-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Helvetica";
+  src: url("fonts/Helvetica-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: "SM Dinaru Std";
+  src: url("fonts/SMDinaruStd-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Pretendard";
+  src: url("fonts/Pretendard-Medium.woff2") format("woff2");
+  font-weight: 500;
+  font-display: swap;
+}
+
+/* 디자인 기준 1440 x 1024. --u 는 "디자인 1px"이 화면에서 차지하는 길이 */
+:root {
+  --u: max(min(100vw / 1440, 100vh / 1024), 0.6px);
+  --bar: calc(60 * var(--u));
+  --fall-duration: 45s;
+
+  --c-green: #8effac;
+  --c-lilac: #c5c8ff;
+  --c-yellow: #e8ff8e;
+  --c-cyan: #8ef4ff;
+  --c-orange: #ffb78e;
+  --c-pink: #ff9fe9;
+  --ink: #000;
+  --bar-bg: #1b1b1b;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #fff;
+  color: var(--ink);
+  letter-spacing: -0.04em; /* 자간 -4 (Figma 기준 -4%) — 모든 글자에 적용 */
+}
+
+/* ---------- 배경 단어 박스 (z 1) ---------- */
+.words {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* 같은 트랙 두 장을 위아래로 이어 붙이고, 한 장 높이(=화면 높이)만큼 내려가면 처음으로 되돌려 끊김 없이 반복 */
+.strip {
+  position: absolute;
+  left: 0;
+  top: -100%;
+  width: 100%;
+  height: 200%;
+  animation: fall var(--fall-duration) linear infinite;
+  will-change: transform;
+}
+
+.track {
+  position: relative;
+  width: 100%;
+  height: 50%;
+}
+
+@keyframes fall {
+  from { transform: translateY(0); }
+  to   { transform: translateY(50%); }
+}
+
+.word {
+  position: absolute;
+  left: calc(var(--x) / 1440 * 100%);
+  top: calc((var(--row) + 0.5) / 6 * 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: calc(64 * var(--u));
+  height: calc(35 * var(--u));
+  font-family: "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
+  font-size: calc(28 * var(--u));
+  font-weight: 500;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  white-space: nowrap;
+  color: #000;
+}
+.f-dinaru     { font-family: "SM Dinaru Std", "Pretendard", sans-serif; font-weight: 400; }
+.f-pretendard { font-family: "Pretendard", "Apple SD Gothic Neo", sans-serif; font-weight: 500; }
+
+.c-green  { background: var(--c-green); }
+.c-lilac  { background: var(--c-lilac); }
+.c-yellow { background: var(--c-yellow); }
+.c-cyan   { background: var(--c-cyan); }
+.c-orange { background: var(--c-orange); }
+.c-pink   { background: var(--c-pink); }
+
+/* ---------- 중앙 책 (z 2: 단어 박스 위) ---------- */
+.stage {
+  position: fixed;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.book {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: calc(361 * var(--u));
+  transform: translate(-50%, -50%);
+  filter: drop-shadow(0 0 5px rgba(0, 0, 0, 0.25));
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+/* ---------- 상단: 로고 고정 + contact / about ---------- */
+.top {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: calc(124 * var(--u));
+  z-index: 10;
+  pointer-events: none;
+}
+
+.logo {
+  position: absolute;
+  left: 50%;
+  top: calc(27 * var(--u));
+  width: calc(193 * var(--u));
+  transform: translateX(-50%);
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.nav {
+  position: absolute;
+  top: calc(36 * var(--u));
+  padding: calc(8 * var(--u)) calc(10 * var(--u));
+  font-family: "American Typewriter", Georgia, serif;
+  font-weight: 400;
+  font-size: calc(25 * var(--u));
+  letter-spacing: -0.04em;
+  line-height: 1;
+  color: var(--ink);
+  text-decoration: none;
+  pointer-events: auto;
+  cursor: pointer;
+  transition: opacity 0.15s ease, text-decoration-color 0.15s ease;
+  text-decoration: underline transparent;
+  text-underline-offset: 4px;
+}
+.nav--left  { left: calc(70 * var(--u)); }
+.nav--right { right: calc(70 * var(--u)); }
+.nav:hover,
+.nav:focus-visible { text-decoration-color: currentColor; }
+.nav:active { opacity: 0.55; }
+
+/* ---------- CLICK TO OPEN ---------- */
+.open {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--bar) + 78 * var(--u));
+  transform: translateX(-50%);
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: calc(6 * var(--u));
+  padding: calc(8 * var(--u)) calc(12 * var(--u));
+  color: var(--ink);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.open__label {
+  font-family: "Helvetica", Arial, sans-serif;
+  font-weight: 400;
+  font-size: calc(28 * var(--u));
+  letter-spacing: -0.04em;
+  line-height: 1;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  white-space: nowrap;
+}
+
+.open__hand {
+  height: calc(52 * var(--u));
+  min-height: 30px;
+  transform: rotate(-19deg);
+  transition: transform 0.2s ease;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.open:hover .open__hand,
+.open:focus-visible .open__hand { transform: rotate(-19deg) translate(4px, -6px); }
+.open:active .open__hand { transform: rotate(-19deg) scale(0.92); }
+
+/* ---------- 하단 검정 바 (위치 고정) ---------- */
+.bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: var(--bar);
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: calc(38 * var(--u));
+  background: var(--bar-bg);
+}
+
+.bar__icon {
+  height: auto;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+.bar__icon--crawl { width: calc(86 * var(--u)); }
+.bar__icon--book  { width: calc(78 * var(--u)); }
+.bar__icon--pen   { width: calc(62 * var(--u)); }

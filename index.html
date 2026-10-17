@@ -3,18 +3,69 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Afterimage</title>
-<link rel="stylesheet" href="style.css">
+<title>Failure, Your Re:Definition</title>
+<link rel="stylesheet" href="home.css">
 </head>
 <body>
-  <div id="stage">
-    <div class="glow glow--cool"></div>
-    <div class="glow glow--warm"></div>
+
+  <!-- 배경: 컬러 단어 박스가 위에서 아래로 계속 흘러내림 (책보다 뒤) -->
+  <div class="words" aria-hidden="true">
+    <div class="strip">
+      <div class="track">
+        <span class="word c-cyan   l" style="--x:474;  --row:0">실수</span>
+        <span class="word c-green  r" style="--x:1293; --row:0">탈락</span>
+        <span class="word c-green  l" style="--x:80;   --row:1">실패</span>
+        <span class="word c-lilac  r" style="--x:899;  --row:1">불발</span>
+        <span class="word c-lilac  l" style="--x:297;  --row:2">좌절</span>
+        <span class="word c-pink   r" style="--x:1116; --row:2">고배</span>
+        <span class="word c-yellow l" style="--x:152;  --row:3">패배</span>
+        <span class="word c-cyan   r" style="--x:971;  --row:3">착오</span>
+        <span class="word c-pink   l" style="--x:361;  --row:4">낙방</span>
+        <span class="word c-orange r" style="--x:1180; --row:4">허탈</span>
+        <span class="word c-orange l" style="--x:245;  --row:5">낭패</span>
+        <span class="word c-yellow r" style="--x:1064; --row:5">무산</span>
+      </div>
+      <div class="track">
+        <span class="word c-cyan   l" style="--x:474;  --row:0">실수</span>
+        <span class="word c-green  r" style="--x:1293; --row:0">탈락</span>
+        <span class="word c-green  l" style="--x:80;   --row:1">실패</span>
+        <span class="word c-lilac  r" style="--x:899;  --row:1">불발</span>
+        <span class="word c-lilac  l" style="--x:297;  --row:2">좌절</span>
+        <span class="word c-pink   r" style="--x:1116; --row:2">고배</span>
+        <span class="word c-yellow l" style="--x:152;  --row:3">패배</span>
+        <span class="word c-cyan   r" style="--x:971;  --row:3">착오</span>
+        <span class="word c-pink   l" style="--x:361;  --row:4">낙방</span>
+        <span class="word c-orange r" style="--x:1180; --row:4">허탈</span>
+        <span class="word c-orange l" style="--x:245;  --row:5">낭패</span>
+        <span class="word c-yellow r" style="--x:1064; --row:5">무산</span>
+      </div>
+    </div>
   </div>
-  <canvas id="stars"></canvas>
-  <canvas id="shape"></canvas>
-  <canvas id="trail"></canvas>
-  <canvas id="head"></canvas>
-  <script src="script.js"></script>
+
+  <!-- 중앙 책 (단어 박스보다 앞) -->
+  <main class="stage">
+    <img class="book" src="assets/book.png" alt="실패사전 — Failure Dictionary">
+  </main>
+
+  <!-- 상단 고정 -->
+  <header class="top">
+    <a class="nav nav--left" href="#contact" id="contact-btn">contact</a>
+    <img class="logo" src="assets/logo.png" alt="failure your Re:Definition">
+    <a class="nav nav--right" href="#about" id="about-btn">about</a>
+  </header>
+
+  <a class="open" href="#open" id="open-btn">
+    <span class="open__label">CLICK TO OPEN</span>
+    <img class="open__hand" src="assets/hand.png" alt="">
+  </a>
+
+  <!-- 하단 검정 바 (위치 고정) -->
+  <footer class="bar">
+    <img src="assets/icon-crawl.png" alt="" class="bar__icon bar__icon--crawl">
+    <img src="assets/icon-book.png"  alt="" class="bar__icon bar__icon--book">
+    <img src="assets/icon-pen.png"   alt="" class="bar__icon bar__icon--pen">
+  </footer>
+
+  <script src="home.js"></script>
 </body>
 </html>
