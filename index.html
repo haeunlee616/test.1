@@ -44,8 +44,39 @@
 
   <!-- 중앙 책 (단어 박스보다 앞) -->
   <main class="stage">
-    <img class="book" src="assets/book.png" alt="실패사전 — Failure Dictionary">
+    <div class="book-shadow" aria-hidden="true"></div>
+    <div class="rig">
+      <div class="book3d">
+        <div class="page-right"><img src="assets/spread-right.png" alt=""></div>
+        <div class="page-next"><img src="assets/spread-blank-right.png" alt=""></div>
+        <div class="cover">
+          <div class="cover__face cover__front">
+            <img class="book" src="assets/book.png" alt="실패사전 — Failure Dictionary">
+          </div>
+          <div class="cover__face cover__back">
+            <img src="assets/spread-left.png" alt="">
+          </div>
+        </div>
+        <div class="leaf">
+          <div class="leaf__face leaf__front"><img src="assets/spread-right.png" alt=""></div>
+          <div class="leaf__face leaf__back"><img src="assets/spread-blank-left.png" alt=""></div>
+        </div>
+        <div class="page-copy">
+          <div class="page-text page-title" id="page-title">Redefine your failure.</div>
+          <div class="page-text page-sub" id="page-sub">What does failure mean to you?</div>
+        </div>
+      </div>
+    </div>
   </main>
+
+  <!-- 책이 펼쳐진 뒤 나타나는 문구 -->
+  <section class="caption">
+    <p class="caption__term" id="caption-term">failure:</p>
+    <p class="caption__def" aria-label="(1) the fact of someone or something not succeeding">
+      <span class="caption__ghost" aria-hidden="true">(1) the fact of someone or something not succeeding</span>
+      <span class="caption__typed" id="typed" aria-hidden="true"></span>
+    </p>
+  </section>
 
   <!-- 상단 고정 -->
   <header class="top">
@@ -65,6 +96,11 @@
     <img src="assets/icon-book.png"  alt="" class="bar__icon bar__icon--book">
     <img src="assets/icon-pen.png"   alt="" class="bar__icon bar__icon--pen">
   </footer>
+
+  <a class="start" href="#start" id="start-btn">Let’s start</a>
+
+  <!-- 커서를 따라다니는 단어 박스 -->
+  <div class="trail" id="trail" aria-hidden="true"></div>
 
   <script src="home.js"></script>
 </body>

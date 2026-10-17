@@ -11,6 +11,38 @@
   font-display: swap;
 }
 @font-face {
+  font-family: "Helvetica";
+  src: url("fonts/Helvetica-Oblique.woff2") format("woff2");
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Helvetica";
+  src: url("fonts/Helvetica-LightOblique.woff2") format("woff2");
+  font-weight: 300;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: "American Typewriter";
+  src: url("fonts/AmericanTypewriter-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-display: swap;
+}
+@font-face {
+  font-family: "American Typewriter";
+  src: url("fonts/AmericanTypewriter-Semibold.woff2") format("woff2");
+  font-weight: 600;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Futura Cyrillic";
+  src: url("fonts/FuturaCyrillic-Book.woff2") format("woff2");
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
   font-family: "SM Dinaru Std";
   src: url("fonts/SMDinaruStd-Regular.woff2") format("woff2");
   font-weight: 400;
@@ -27,7 +59,7 @@
 :root {
   --u: max(min(100vw / 1440, 100vh / 1024), 0.6px);
   --bar: calc(60 * var(--u));
-  --fall-duration: 45s;
+  --fall-duration: 32s;
 
   --c-green: #8effac;
   --c-lilac: #c5c8ff;
@@ -115,17 +147,157 @@ html, body {
   inset: 0;
   z-index: 2;
   pointer-events: none;
+  perspective: 2000px;
+  --open-delay: 0.6s;   /* 클릭 후 책이 열리기 시작하기까지 */
+  --open-dur: 1.9s;     /* 책이 펼쳐지는 시간 */
+  --open-ease: cubic-bezier(0.55, 0.05, 0.25, 1);
+  --turn-dur: 2s;       /* 페이지 한 장이 넘어가는 시간 ((3)번 문장 타이핑 시간과 같게) */
+  --turn-ease: cubic-bezier(0.5, 0.05, 0.25, 1);
+  --cover-w: calc(361 * var(--u));
+  --cover-h: calc(491 * var(--u));
+  --page-w: calc(328.6 * var(--u));
+  --page-h: calc(454 * var(--u));
 }
 
-.book {
+/* rig: 책등(가운데 세로축)에 놓인 점. 둥둥 떠다니는 모션과 펼침 시 위로 이동을 담당 */
+.rig {
   position: absolute;
   left: 50%;
-  top: 50%;
-  width: calc(361 * var(--u));
-  transform: translate(-50%, -50%);
+  top: calc(50% - 5px);
+  width: 0;
+  height: 0;
+  transform-style: preserve-3d;
+  animation: float 6s ease-in-out infinite;
+  transition: top var(--open-dur) var(--open-ease) var(--open-delay);
+}
+
+/* 닫힌 상태에서는 표지 중앙이 화면 중앙에 오도록 왼쪽으로 반 폭만큼 이동, 열리면서 제자리로 */
+.book3d {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-style: preserve-3d;
+  transform: translateX(calc(var(--cover-w) / -2));
+  transition: transform var(--open-dur) var(--open-ease) var(--open-delay);
+}
+
+.page-right {
+  position: absolute;
+  left: 0;
+  top: calc(var(--page-h) / -2);
+  width: var(--page-w);
+  height: var(--page-h);
+  transform: translateZ(-2px);
+}
+.page-right img { display: block; width: 100%; height: 100%; }
+
+/* 표지가 덮고 있던 동안 오른쪽 페이지에 드리운 그림자 — 열리면서 사라짐 */
+.page-right::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to right, rgba(0, 0, 0, 0.45), rgba(0, 0, 0, 0) 75%);
+  -webkit-mask: url("assets/spread-right.png") center / 100% 100% no-repeat;
+  mask: url("assets/spread-right.png") center / 100% 100% no-repeat;
+  opacity: 1;
+  transition: opacity var(--open-dur) ease-in-out var(--open-delay);
+}
+
+/* 표지: 책등(왼쪽 모서리)을 축으로 회전. 앞면 = 닫힌 책, 뒷면 = 펼친 책의 왼쪽 페이지 */
+.cover {
+  position: absolute;
+  left: 0;
+  top: calc(var(--cover-h) / -2);
+  width: var(--cover-w);
+  height: var(--cover-h);
+  transform-origin: 0 50%;
+  transform-style: preserve-3d;
+  transition: transform var(--open-dur) var(--open-ease) var(--open-delay);
+}
+
+.cover__face {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.cover__front img {
+  display: block;
+  width: 100%;
+  height: 100%;
   filter: drop-shadow(0 0 5px rgba(0, 0, 0, 0.25));
   user-select: none;
   -webkit-user-drag: none;
+}
+
+.cover__back { transform: rotateY(180deg); }
+.cover__back img {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  width: var(--page-w);
+  height: var(--page-h);
+  transform: translateY(-50%);
+}
+.cover__back::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  top: 50%;
+  width: var(--page-w);
+  height: var(--page-h);
+  transform: translateY(-50%);
+  background: linear-gradient(to left, rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0) 70%);
+  -webkit-mask: url("assets/spread-left.png") center / 100% 100% no-repeat;
+  mask: url("assets/spread-left.png") center / 100% 100% no-repeat;
+  opacity: 1;
+  transition: opacity var(--open-dur) ease-in-out var(--open-delay);
+}
+
+/* 열린 상태 */
+.is-open .rig { top: calc(50% - 5px - 60 * var(--u)); }
+.is-open .book3d { transform: translateX(0); }
+.is-open .cover { transform: rotateY(-180deg); }
+.is-open .page-right::after,
+.is-open .cover__back::after { opacity: 0; }
+
+/* 바닥에 비치는 그림자 — 사전이 떠오르면 작고 옅어지고, 내려오면 커지고 진해짐 */
+.book-shadow {
+  position: absolute;
+  left: 50%;
+  top: calc(50% - 5px + 245 * var(--u) + 24 * var(--u));
+  width: calc(320 * var(--u));
+  height: calc(26 * var(--u));
+  margin-left: calc(-160 * var(--u));
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(0, 0, 0, 0.38), rgba(0, 0, 0, 0));
+  filter: blur(4px);
+  animation: float-shadow 6s ease-in-out infinite;
+  transition:
+    top var(--open-dur) var(--open-ease) var(--open-delay),
+    width var(--open-dur) var(--open-ease) var(--open-delay),
+    margin-left var(--open-dur) var(--open-ease) var(--open-delay);
+}
+.is-open .book-shadow {
+  top: calc(50% - 5px - 60 * var(--u) + 227 * var(--u) + 24 * var(--u));
+  width: calc(600 * var(--u));
+  margin-left: calc(-300 * var(--u));
+}
+
+/* 흰 바닥 위에 둥둥 떠 있는 느낌: 위아래로 천천히 오르내리며 살짝 입체적으로 기울어짐 */
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0) rotateX(1.5deg) rotateY(-3.5deg) rotateZ(-0.6deg);
+  }
+  50% {
+    transform: translateY(calc(-18 * var(--u))) rotateX(-1.5deg) rotateY(3.5deg) rotateZ(0.6deg);
+  }
+}
+
+@keyframes float-shadow {
+  0%, 100% { transform: scale(1, 1);       opacity: 1; }
+  50%      { transform: scale(0.78, 0.8);  opacity: 0.55; }
 }
 
 /* ---------- 상단: 로고 고정 + contact / about ---------- */
@@ -235,3 +407,261 @@ html, body {
 .bar__icon--crawl { width: calc(86 * var(--u)); }
 .bar__icon--book  { width: calc(78 * var(--u)); }
 .bar__icon--pen   { width: calc(62 * var(--u)); }
+
+/* ---------- 열린 뒤: CLICK TO OPEN 사라지고 설명 문구가 나타남 ---------- */
+.open {
+  transition: opacity 0.5s ease;
+}
+.is-open .open {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.caption {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--bar) + 125 * var(--u));
+  transform: translateX(-50%);
+  z-index: 10;
+  text-align: center;
+  font-size: calc(28 * var(--u));
+  line-height: calc(35 * var(--u));
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.caption p { margin: 0; }
+
+.caption__term {
+  font-family: "American Typewriter", Georgia, serif;
+  font-weight: 400;
+  opacity: 0;
+  transition: opacity 0.7s ease;
+}
+.caption__term.is-visible { opacity: 1; }
+
+/* 타이핑: 전체 문장은 보이지 않게 자리만 차지하고, 한 글자씩 앞에서부터 채워짐 */
+.caption__def {
+  position: relative;
+  display: inline-block;
+  font-family: "Helvetica", Arial, sans-serif;
+  font-weight: 400;
+}
+.caption__ghost { visibility: hidden; }
+.caption__typed {
+  position: absolute;
+  left: 0;
+  top: 0;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  opacity: 1;
+}
+.caption__typed.is-fading {
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+.caption__typed.is-fading::after { opacity: 0; animation: none; }
+.caption__typed em,
+.caption__ghost em {
+  font-style: italic;
+  color: #1b1b1b;
+}
+.caption__typed::after {
+  content: "";
+  display: inline-block;
+  width: 1px;
+  height: 0.95em;
+  margin-left: 2px;
+  vertical-align: -0.12em;
+  background: currentColor;
+  opacity: 0;
+}
+.caption__typed.is-typing::after {
+  opacity: 1;
+  animation: caret 0.8s steps(1) infinite;
+}
+@keyframes caret { 50% { opacity: 0; } }
+
+/* ---------- 열릴 때 책 쪽으로 모여드는 단어 박스 (책보다 아래 레이어) ---------- */
+.words-fly {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  overflow: hidden;
+  pointer-events: none;
+}
+.words-fly .fly {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  color: #000;
+  will-change: transform, opacity;
+}
+
+/* ---------- 페이지 넘김: 오른쪽 페이지가 책등을 축으로 왼쪽으로 넘어감 ---------- */
+.page-next,
+.leaf {
+  position: absolute;
+  left: 0;
+  top: calc(var(--page-h) / -2);
+  width: var(--page-w);
+  height: var(--page-h);
+  visibility: hidden;
+}
+.page-next { transform: translateZ(-1px); }
+.page-next img,
+.leaf__face img { display: block; width: 100%; height: 100%; }
+
+.leaf {
+  transform-origin: 0 50%;
+  transform-style: preserve-3d;
+  transform: translateZ(1px) rotateY(0deg);
+  transition: transform var(--turn-dur) var(--turn-ease);
+}
+.leaf__face {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+.leaf__back { transform: rotateY(180deg); }
+.is-turned .leaf { transform: translateZ(1px) rotateY(-180deg); }
+
+/* 넘어가는 동안 페이지 앞·뒷면에 스치는 그림자 (페이지 모양대로 잘라냄) */
+.leaf__front::after,
+.leaf__back::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+}
+.leaf__front::after {
+  background: linear-gradient(to right, rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0) 70%);
+  -webkit-mask: url("assets/spread-right.png") center / 100% 100% no-repeat;
+  mask: url("assets/spread-right.png") center / 100% 100% no-repeat;
+}
+.leaf__back::after {
+  background: linear-gradient(to left, rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0) 70%);
+  -webkit-mask: url("assets/spread-blank-left.png") center / 100% 100% no-repeat;
+  mask: url("assets/spread-blank-left.png") center / 100% 100% no-repeat;
+}
+.is-turned .leaf__front::after { animation: leaf-shade-front var(--turn-dur) ease-in-out both; }
+.is-turned .leaf__back::after  { animation: leaf-shade-back var(--turn-dur) ease-in-out both; }
+@keyframes leaf-shade-front { 0% { opacity: 0; } 45% { opacity: 1; } 50%, 100% { opacity: 0; } }
+@keyframes leaf-shade-back  { 0%, 50% { opacity: 0; } 55% { opacity: 1; } 100% { opacity: 0; } }
+
+/* ---------- 빈 페이지 위 문구 ---------- */
+/* 두 줄을 하나로 묶어서, 묶음의 한가운데에서 원이 생겨 커지며 문구가 드러남 */
+.page-copy {
+  position: absolute;
+  left: 0;
+  top: calc(-26 * var(--u));
+  width: calc(600 * var(--u));
+  height: calc(140 * var(--u));
+  transform: translate(-50%, -50%) translateZ(3px);
+  pointer-events: none;
+  color: #000;
+  clip-path: circle(0% at 50% 50%);
+  opacity: 0;
+}
+.page-text {
+  position: absolute;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  white-space: nowrap;
+  text-align: center;
+}
+.page-title {
+  top: calc(50% - 24 * var(--u));
+  font-family: "American Typewriter", Georgia, serif;
+  font-weight: 600;
+  font-size: calc(42 * var(--u));
+  line-height: 1.1;
+  -webkit-text-stroke: calc(4 * var(--u)) var(--c-yellow);
+  paint-order: stroke fill;
+}
+.page-sub {
+  top: calc(50% + 24 * var(--u));
+  font-family: "Helvetica", Arial, sans-serif;
+  font-weight: 300;
+  font-style: italic;
+  font-size: calc(28 * var(--u));
+  line-height: 1.1;
+}
+
+.show-final .page-copy {
+  animation: circle-grow 1.3s cubic-bezier(0.25, 0.6, 0.25, 1) both;
+}
+@keyframes circle-grow {
+  0%   { opacity: 0; clip-path: circle(0% at 50% 50%); scale: 0.9; }
+  12%  { opacity: 1; }
+  100% { opacity: 1; clip-path: circle(80% at 50% 50%); scale: 1; }
+}
+
+/* ---------- (3)번 문장이 사라지고 Let's start 버튼 등장 ---------- */
+.caption { transition: opacity 0.4s ease; }
+.show-final .caption { opacity: 0; }
+
+.start {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--bar) + 114 * var(--u));
+  transform: translateX(-50%);
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: calc(181 * var(--u));
+  height: calc(60 * var(--u));
+  border-radius: calc(30 * var(--u));
+  background: #1b1b1b;
+  color: #fff;
+  font-family: "Futura Cyrillic", "Futura", "Century Gothic", sans-serif;
+  font-weight: 400;
+  font-size: calc(36 * var(--u));
+  letter-spacing: -0.04em;
+  line-height: 1;
+  text-decoration: none;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.5s ease, background-color 0.25s ease, color 0.25s ease;
+}
+.show-final .start {
+  opacity: 1;
+  pointer-events: auto;
+  transition-delay: 0.45s, 0s, 0s;
+}
+.show-final .start:hover,
+.show-final .start:focus-visible {
+  background: var(--c-yellow);
+  color: #1b1b1b;
+  transition-delay: 0s;
+}
+
+/* ---------- 커서를 따라다니는 단어 박스 ---------- */
+.trail {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  overflow: hidden;
+  pointer-events: none;
+}
+.trail__word {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: calc(35 * var(--u));
+  font-size: calc(22 * var(--u));
+  line-height: 1;
+  letter-spacing: -0.04em;
+  white-space: nowrap;
+  color: #000;
+  opacity: 0;
+  will-change: transform, opacity;
+}
