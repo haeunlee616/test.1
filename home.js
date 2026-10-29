@@ -10,6 +10,161 @@ for (const [id, href] of Object.entries(LINKS)) {
   if (el) el.setAttribute('href', href);
 }
 
+// ---------- 넘어가는 장(leaf): 모서리부터 들리며 대각선 접힘선이 쓸고 지나가는 종이 말림 ----------
+// 접힘선: n·p = s (p 는 책등 왼쪽 위를 원점으로 한 종이 위의 좌표, y 는 아래쪽이 +).
+//  - 시작: 위쪽 오른쪽 모서리를 스치는 대각선(n 이 오른쪽 위를 향함, 45°)
+//  - 진행하면서 n 이 점점 수평(0°)으로 눕고 s 가 0 으로 줄어, 마지막엔 접힘선이 책등(x=0)과 겹침
+//  - 접힘선 너머 부분(flap)은 접힘선을 기준으로 뒤집어 그리고(반사 행렬), 남은 부분(stay)은 그대로 둠
+const CURL_START_ANGLE = Math.PI / 4;
+
+function clipHalfPlane(poly, nx, ny, s, keepGreater) {
+  const sign = keepGreater ? 1 : -1;
+  const out = [];
+  for (let i = 0; i < poly.length; i++) {
+    const A = poly[i];
+    const B = poly[(i + 1) % poly.length];
+    const da = sign * (nx * A.x + ny * A.y - s);
+    const db = sign * (nx * B.x + ny * B.y - s);
+    if (da >= 0) out.push(A);
+    if ((da >= 0) !== (db >= 0)) {
+      const t = da / (da - db);
+      out.push({ x: A.x + (B.x - A.x) * t, y: A.y + (B.y - A.y) * t });
+    }
+  }
+  return out;
+}
+const polyCss = (pts) => (pts.length >= 3
+  ? `polygon(${pts.map((q) => `${q.x.toFixed(2)}px ${q.y.toFixed(2)}px`).join(',')})`
+  : 'polygon(0 0, 0 0, 0 0)');
+
+// 종이 두께: 들려 있는 면(flap) 뒤에 같은 모양의 가장자리 층을 조금씩 어긋나게 깔아서, 얇은 종이의 단면이 보이게 함
+const RIM_COLORS = ['#8f8a78', '#aaa591', '#cbc6b5']; // 가장 먼 층 → 가장 가까운 층 (종이 단면의 음영)
+const RIM_STEP = 2.0;                                 // 층 하나당 두께 (디자인 px) — 들려 있을 때 전체 약 5px
+
+function buildLeaf(leaf) {
+  const { front, back } = leaf.dataset;
+  const rims = RIM_COLORS.map((color) => `<div class="leaf__flap leaf__rim"><div class="leaf__rim-fill" style="background:${color};-webkit-mask-image:url('${back}');mask-image:url('${back}')"></div></div>`).join('');
+  leaf.innerHTML = `
+    <div class="leaf__stay"><img src="${front}" alt=""><div class="leaf__crease leaf__crease--stay"><i></i></div></div>
+    <div class="leaf__flap-wrap">${rims}<div class="leaf__flap leaf__flap--face"><img src="${back}" alt=""><div class="leaf__crease leaf__crease--flap"><i></i></div></div></div>`;
+  leaf._curl = {
+    stay: leaf.querySelector('.leaf__stay'),
+    wrap: leaf.querySelector('.leaf__flap-wrap'),
+    flap: leaf.querySelector('.leaf__flap--face'),
+    rims: [...leaf.querySelectorAll('.leaf__rim')],
+    creaseStay: leaf.querySelector('.leaf__crease--stay'),
+    creaseFlap: leaf.querySelector('.leaf__crease--flap'),
+    last: -1,
+  };
+}
+
+function updateCurl(leaf, p) {
+  const c = leaf._curl;
+  const W = leaf.offsetWidth;
+  const H = leaf.offsetHeight;
+  if (!W || !H) return;
+  const a = CURL_START_ANGLE * (1 - p);
+  const nx = Math.cos(a);
+  const ny = -Math.sin(a);
+  const s = W * Math.cos(CURL_START_ANGLE) * (1 - p);
+  const rect = [{ x: 0, y: 0 }, { x: W, y: 0 }, { x: W, y: H }, { x: 0, y: H }];
+  const stayPoly = clipHalfPlane(rect, nx, ny, s, false);
+  const flapPoly = clipHalfPlane(rect, nx, ny, s, true);
+  const hasStay = stayPoly.length >= 3 && p < 0.9995;
+  const hasFlap = flapPoly.length >= 3 && p > 0.0005;
+
+  c.stay.style.display = hasStay ? '' : 'none';
+  c.stay.style.clipPath = polyCss(stayPoly);
+  c.wrap.style.display = hasFlap ? '' : 'none';
+  if (hasFlap) {
+    // 접힘선을 기준으로 한 반사: p' = p - 2 (n·p - s) n
+    const m = [1 - 2 * nx * nx, -2 * nx * ny, -2 * nx * ny, 1 - 2 * ny * ny, 2 * s * nx, 2 * s * ny];
+    const matrix = `matrix(${m.map((v) => v.toFixed(5)).join(',')})`;
+    const clip = polyCss(flapPoly);
+    c.flap.style.clipPath = clip;
+    c.flap.style.transform = matrix;
+    const k = Math.sin(Math.PI * Math.min(1, p)); // 들려 있는 정도: 중간에 가장 높고 끝에는 책 위에 납작하게 내려앉음
+    // 두께: 들려 있을수록(k) 단면이 더 두껍게 보이고, 책 위에 놓이면 사라짐
+    const rimCount = c.rims.length;
+    c.rims.forEach((rim, idx) => {
+      const d = (rimCount - idx) * RIM_STEP * unit * Math.pow(k, 0.8);
+      rim.style.clipPath = clip;
+      rim.style.transform = `translate(${(d * -0.8).toFixed(2)}px, ${(d * 0.9).toFixed(2)}px) ${matrix}`;
+    });
+    c.wrap.style.filter = `drop-shadow(0 ${(5 * unit * k).toFixed(2)}px ${(10 * unit * k).toFixed(2)}px rgba(0,0,0,${(0.42 * k).toFixed(3)}))`;
+  }
+  const angle = (Math.atan2(ny, nx) * 180) / Math.PI;
+  const tr = `translate(${(s * nx).toFixed(2)}px, ${(s * ny).toFixed(2)}px) rotate(${angle.toFixed(3)}deg)`;
+  c.creaseStay.style.transform = tr;
+  c.creaseFlap.style.transform = tr;
+  const shade = Math.pow(Math.sin(Math.PI * Math.min(1, p * 1.04)), 0.7);
+  c.creaseStay.style.opacity = shade.toFixed(3);
+  c.creaseFlap.style.opacity = shade.toFixed(3);  // 다 넘어가 놓이면 음영이 사라져 왼쪽 페이지가 깨끗하게 남음
+}
+
+// ---------- 사전이 펼쳐지는 동시에: 빈 장 여러 개가 한 장씩 촤라락 넘어간 뒤 목표 페이지가 나옴 ----------
+// 표지가 열리는 도중부터 FAN_COUNT 장이 짧은 간격으로 차례로 말려 넘어감.
+// 마지막 장의 뒷면이 목표(정의) 페이지이고, 그 장이 들리는 순간 아래에서 목표 오른쪽 페이지(노란 장)가 드러남.
+const FAN_COUNT = 6;
+const FAN_FLIP_MS = 740;      // 한 장이 넘어가는 시간
+const FAN_STAGGER_MS = 120;   // 장과 장 사이 간격
+const FAN_START_AFTER_OPEN_MS = 600; // 표지가 열리기 시작한 뒤 이만큼 지나면 촤라락 넘기기 시작 (표지가 다 열릴 즈음 마지막 장이 내려앉음)
+(function createFanLeaves() {
+  const anchor = document.querySelector('.leaf-1');
+  for (let i = FAN_COUNT - 1; i >= 0; i--) {
+    const leaf = document.createElement('div');
+    leaf.className = 'leaf leaf-fan';
+    leaf.dataset.fan = i;
+    leaf.dataset.front = 'assets/face-right-blank.png';
+    leaf.dataset.back = i === FAN_COUNT - 1 ? 'assets/face-left-def.png' : 'assets/face-left-blank.png';
+    anchor.insertAdjacentElement('afterend', leaf);
+  }
+})();
+
+// 오른쪽에서는 먼저 넘어갈 장이 위에, 왼쪽에서는 나중에 넘어온 장이 위에 오도록 높이(z)를 넘어가는 동안 바꿔 줌
+function setFanZ(leaf, p) {
+  const i = Number(leaf.dataset.fan);
+  const right = 1 + (FAN_COUNT - i) * 0.25;
+  const left = 1 + (i + 1) * 0.25;
+  const t = Math.min(1, Math.max(0, (p - 0.35) / 0.3));
+  const mix = t * t * (3 - 2 * t);
+  const z = right + (left - right) * mix + 2.2 * Math.sin(Math.PI * p);
+  leaf.style.transform = `translateZ(${z.toFixed(3)}px)`;
+}
+
+function runFan() {
+  const fans = [...document.querySelectorAll('.leaf-fan')];
+  const pageNext = document.querySelector('.page-next');
+  fans.forEach((leaf, i) => {
+    leaf.style.visibility = 'visible';
+    leaf.style.transition = `--p ${FAN_FLIP_MS}ms cubic-bezier(0.45, 0.05, 0.3, 1) ${i * FAN_STAGGER_MS}ms`;
+  });
+  void document.body.offsetWidth; // 보이게 한 직후 전환이 시작되도록 레이아웃 확정
+  fans.forEach((leaf) => leaf.style.setProperty('--p', '1'));
+  // 마지막 장이 들리기 시작하는 순간, 덮고 있던 빈 쪽을 치워 목표 오른쪽 페이지가 드러나게 함
+  setTimeout(() => { pageNext.style.visibility = 'hidden'; }, (fans.length - 1) * FAN_STAGGER_MS + 40);
+}
+
+const curlLeaves = [...document.querySelectorAll('.leaf')];
+curlLeaves.forEach((leaf) => {
+  buildLeaf(leaf);
+  updateCurl(leaf, 0);
+  leaf._curl.last = 0;
+  if (leaf.dataset.fan !== undefined) setFanZ(leaf, 0);
+});
+(function curlLoop() {
+  for (const leaf of curlLeaves) {
+    if (leaf.style.visibility !== 'visible') continue;
+    const p = parseFloat(getComputedStyle(leaf).getPropertyValue('--p')) || 0;
+    if (Math.abs(p - leaf._curl.last) > 0.0003) {
+      leaf._curl.last = p;
+      updateCurl(leaf, p);
+      if (leaf.dataset.fan !== undefined) setFanZ(leaf, p);
+    }
+  }
+  requestAnimationFrame(curlLoop);
+})();
+
 // ---------- 단어 박스 폰트: SM Dinaru Std / Pretendard Medium 을 반반 섞어 무작위 배정 ----------
 // 두 트랙(이어 붙여 반복되는 두 장)에는 같은 배정을 적용해서 반복 이음매가 튀지 않게 함
 const FONT_CLASSES = ['f-dinaru', 'f-pretendard'];
@@ -372,9 +527,38 @@ openBtn.addEventListener('click', (e) => {
   opened = true;
 
   document.body.classList.add('is-open');
+  document.querySelector('.page-next').style.visibility = 'visible'; // 열리는 동안 오른쪽에는 빈 쪽이 보이고, 목표 페이지는 촤라락 넘긴 뒤에 나옴
   gatherWords();
 
   const openEnd = cssSeconds('--open-delay') + cssSeconds('--open-dur');
+  setTimeout(runFan, cssSeconds('--open-delay') + FAN_START_AFTER_OPEN_MS); // 표지가 열리는 동시에 촤라락 넘기기 시작
   setTimeout(() => termEl.classList.add('is-visible'), openEnd - 200);
   setTimeout(() => playSentence(0), openEnd + 500);
 });
+
+// ---------- 로고: 어느 화면에서든 누르면 맨 처음 화면으로 ----------
+// 진행 중인 전환·타이핑·설문 상태가 남지 않도록 페이지를 새로 불러옴 (이미 처음 주소면 새로고침)
+document.getElementById('logo-link').addEventListener('click', (e) => {
+  e.preventDefault();
+  const home = new URL('./', window.location.href).href;
+  if (window.location.href === home) window.location.reload();
+  else window.location.assign(home);
+});
+
+// ---------- 마우스에 따라 책을 보는 시점이 살짝 움직임 (3D 시차) ----------
+const stageEl3d = document.querySelector('.stage');
+const view = { x: 50, y: 50, tx: 50, ty: 50, locked: false };
+window.addEventListener('mousemove', (e) => {
+  if (view.locked) return;
+  view.tx = 50 + (e.clientX / window.innerWidth - 0.5) * 36;
+  view.ty = 50 + (e.clientY / window.innerHeight - 0.5) * 30;
+});
+// Let's start 를 누른 뒤에는 시점을 가운데로 돌려놓고 고정 (찢는 종이를 정확히 겹치기 위해)
+window.lockBookView = () => { view.locked = true; view.tx = 50; view.ty = 50; };
+(function viewLoop() {
+  view.x += (view.tx - view.x) * 0.07;
+  view.y += (view.ty - view.y) * 0.07;
+  stageEl3d.style.setProperty('--px', `${view.x.toFixed(2)}%`);
+  stageEl3d.style.setProperty('--py', `${view.y.toFixed(2)}%`);
+  requestAnimationFrame(viewLoop);
+})();

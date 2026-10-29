@@ -46,7 +46,15 @@
   <main class="stage">
     <div class="book-shadow" aria-hidden="true"></div>
     <div class="rig">
+      <div class="book-wall-shadow" aria-hidden="true"></div>
+      <div class="book-pose">
       <div class="book3d">
+        <!-- 책의 두께: 뒷표지, 책등, 오른쪽·위·아래 책장 옆면 (책이 열리면 사라짐) -->
+        <div class="bk bk-back" aria-hidden="true"></div>
+        <div class="bk bk-spine" aria-hidden="true"></div>
+        <div class="bk bk-edge-r" aria-hidden="true"></div>
+        <div class="bk bk-edge-t" aria-hidden="true"></div>
+        <div class="bk bk-edge-b" aria-hidden="true"></div>
         <div class="page-right"><img src="assets/spread-right.png" alt=""></div>
         <div class="page-next"><img src="assets/spread-blank-right.png" alt=""></div>
         <div class="cover">
@@ -54,17 +62,16 @@
             <img class="book" src="assets/book.png" alt="실패사전 — Failure Dictionary">
           </div>
           <div class="cover__face cover__back">
-            <img src="assets/spread-left.png" alt="">
+            <img src="assets/spread-blank-left.png" alt="">
           </div>
         </div>
-        <div class="leaf">
-          <div class="leaf__face leaf__front"><img src="assets/spread-right.png" alt=""></div>
-          <div class="leaf__face leaf__back"><img src="assets/spread-blank-left.png" alt=""></div>
-        </div>
+        <!-- 넘어가는 장: 모서리부터 들려 대각선으로 접히며 말려 넘어감 (home.js 가 안쪽을 채움) -->
+        <div class="leaf leaf-1" data-front="assets/face-right-def.png" data-back="assets/face-left-blank.png"></div>
         <div class="page-copy">
           <div class="page-text page-title" id="page-title">Redefine your failure.</div>
           <div class="page-text page-sub" id="page-sub">What does failure mean to you?</div>
         </div>
+      </div>
       </div>
     </div>
   </main>
@@ -81,7 +88,9 @@
   <!-- 상단 고정 -->
   <header class="top">
     <a class="nav nav--left" href="#contact" id="contact-btn">contact</a>
-    <img class="logo" src="assets/logo.png" alt="failure your Re:Definition">
+    <a class="logo-link" href="./" id="logo-link" aria-label="처음 화면으로">
+      <img class="logo" src="assets/logo.png" alt="failure your Re:Definition">
+    </a>
     <a class="nav nav--right" href="#about" id="about-btn">about</a>
   </header>
 
@@ -97,11 +106,55 @@
     <img src="assets/icon-pen.png"   alt="" class="bar__icon bar__icon--pen">
   </footer>
 
+  <!-- 손으로 그린 듯한 울퉁불퉁한 테두리용 필터 (설문의 박스·질문 번호) -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+    <defs>
+      <filter id="rough" x="-5%" y="-5%" width="110%" height="110%">
+        <feTurbulence type="fractalNoise" baseFrequency="0.55" numOctaves="2" seed="4" result="noise"/>
+        <feDisplacementMap in="SourceGraphic" in2="noise" scale="1.1" xChannelSelector="R" yChannelSelector="G"/>
+      </filter>
+    </defs>
+  </svg>
+
+  <!-- 설문 화면: 화면 아래에서 올라오는 레이어 (질문 7개, 질문마다 내용이 바뀜) -->
+  <div class="survey-layer" id="survey-layer" data-bg="f1">
+    <section class="survey" id="survey" aria-hidden="true" data-q="1" data-theme="black">
+      <div class="survey__deco" id="deco" aria-hidden="true" hidden></div>
+
+      <div class="survey__q" id="survey-q">
+        <div class="survey__badge" id="survey-badge">Q1</div>
+        <h2 class="survey__title" id="survey-title"></h2>
+        <p class="survey__sub" id="survey-sub"></p>
+      </div>
+
+      <!-- 글로 답하는 질문 -->
+      <div class="survey__answer" id="answer-box" hidden>
+        <textarea id="answer" aria-label="답변" spellcheck="false"></textarea>
+      </div>
+      <div class="survey__count" id="count" aria-live="polite" hidden>(0/200)</div>
+
+      <!-- 박스를 골라서 답하는 질문 -->
+      <div class="survey__choices" id="choices" hidden></div>
+
+      <!-- 당시 / 지금 색 고르기 -->
+      <div class="survey__colors" id="colors" hidden></div>
+
+      <!-- 나만의 이름과 뜻풀이 -->
+      <div class="survey__define" id="define" hidden></div>
+
+      <div class="survey__bar" role="progressbar" aria-label="설문 진행도" aria-valuemin="0" aria-valuemax="100" id="survey-bar">
+        <div class="survey__bar-fill" id="bar-fill"></div>
+      </div>
+      <button class="survey__next" id="next-btn" type="button" disabled>Next</button>
+    </section>
+  </div>
+
   <a class="start" href="#start" id="start-btn">Let’s start</a>
 
   <!-- 커서를 따라다니는 단어 박스 -->
   <div class="trail" id="trail" aria-hidden="true"></div>
 
   <script src="home.js"></script>
+  <script src="survey.js"></script>
 </body>
 </html>
