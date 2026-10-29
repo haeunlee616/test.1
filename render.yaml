@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: afterimage
+    name: failure-dictionary
     runtime: node
     plan: free
     buildCommand: npm install
