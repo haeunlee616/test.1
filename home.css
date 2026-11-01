@@ -1797,8 +1797,7 @@ html, body {
 .rs-frame { position: absolute; box-sizing: border-box; border: 2px solid #000; }
 .rs-art { position: absolute; inset: 0; overflow: hidden; background-size: cover; background-position: center; }
 .rs-word { position: absolute; left: 0; top: 0; z-index: 2; }
-.rs-sticker { position: absolute; display: block; height: auto; z-index: 3; }
-.rs-sticker[data-kind="line"] { z-index: 1; }            /* 설문4 선 그림은 큰 글자보다 아래 */
+.rs-sticker { position: absolute; display: block; height: auto; z-index: 3; }   /* 모든 옵션 그림은 큰 글자(2)보다 위, 문장(10)이 가장 위 */
 .rs-sentence { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 10; }
 .rs-handle { position: absolute; box-sizing: border-box; width: 22px; height: 22px; background: #fff; border: 2px solid #000; }
 .rs-handle--tl { left: -12px; top: -12px; }

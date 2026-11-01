@@ -36,7 +36,12 @@
   // ----- 큰 글자: 줄 나누기 + 크기 -----
   // 단어를 줄로 나누는 모든 경우 중 칸(가로·세로)을 넘지 않으면서 글자가 가장 커지는 경우를 고름 (같으면 줄이 적은 쪽). 모든 줄의 글자 크기는 같고 가운데 정렬.
   function layoutWord(text, boxW, boxH) {
-    const words = text.split(/\s+/).filter(Boolean);
+    // 관사 A / An 은 바로 뒤 단어와 한 덩어리로 묶어 같은 줄에 둠 (예: 'A New' / 'Beginning')
+    const raw = text.split(/\s+/).filter(Boolean);
+    const words = [];
+    for (let i = 0; i < raw.length; i++) {
+      if (/^an?$/i.test(raw[i]) && i + 1 < raw.length) { words.push(`${raw[i]} ${raw[i + 1]}`); i++; } else words.push(raw[i]);
+    }
     const ctx = document.createElement('canvas').getContext('2d');
     ctx.font = `700 100px ${WORD_FONT}`;
     const ink = (line) => {

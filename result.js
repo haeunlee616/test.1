@@ -90,9 +90,13 @@ async function interpret(responses) {
 // 영어로 입력했으면 그대로 쓰되 각 단어의 첫 글자를 대문자로, 한글이 들어 있으면 AI 로 영어 번역(Result.translateWord)
 const hasHangul = (text) => /[ㄱ-ㅎㅏ-ㅣ가-힣]/.test(text);
 const capitalizeWords = (text) => String(text).trim().split(/\s+/).map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+// AI 번역을 거치지 않고 항상 같은 영어로 쓰는 단어 (공백·문장부호는 무시하고 비교)
+const FIXED_WORDS = { '재시작': 'A New Beginning', '새로운시작': 'A New Beginning' };
+const fixedKey = (text) => String(text).replace(/[\s.,!?'"“”‘’·~-]+/g, '');
 function englishWord(input) {
   const text = String(input || '').trim();
   if (!text) return { input: text, needsTranslation: false, english: '' };
+  if (FIXED_WORDS[fixedKey(text)]) return { input: text, needsTranslation: false, english: FIXED_WORDS[fixedKey(text)] };
   if (hasHangul(text)) return { input: text, needsTranslation: true, english: null };
   return { input: text, needsTranslation: false, english: capitalizeWords(text) };
 }
