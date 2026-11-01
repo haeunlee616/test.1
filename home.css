@@ -43,6 +43,12 @@
   font-display: swap;
 }
 @font-face {
+  font-family: "American Typewriter Condensed";
+  src: url("fonts/AmericanTypewriterCondensed-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-display: swap;
+}
+@font-face {
   font-family: "SM Dinaru Std";
   src: url("fonts/SMDinaruStd-Regular.woff2") format("woff2");
   font-weight: 400;
@@ -1699,6 +1705,44 @@ html, body {
 .define-layer.is-crumpling .dfn__gl { display: block; }
 .dfn__video { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 
-/* Q2 (글로 답하기, 100자): 시안 위치 */
+/* Q2 (글로 답하기, 띄어쓰기 빼고 30자): 시안 위치 */
 .survey[data-q="2"] .survey__answer { left: calc(451 * var(--u)); top: calc(451 * var(--u)); width: calc(538 * var(--u)); height: calc(228 * var(--u)); }
 .survey[data-q="2"] .survey__count { left: calc(451 * var(--u)); top: calc(692 * var(--u)); width: calc(538 * var(--u)); padding-right: calc(2 * var(--u)); }
+
+/* ---------- 결과지용 문장 상자: 흰 바탕 + 검정 선, 위·아래로 엇갈려 계단처럼 이어 붙임 ---------- */
+.sentence-boxes {
+  --sb-line: 0.085em;
+  display: inline-flex;
+  align-items: flex-start;
+  isolation: isolate;
+  padding: var(--sb-line);
+  font-family: "SM Dinaru Std", "Pretendard", sans-serif;
+  font-size: 24px;
+  letter-spacing: -0.04em;
+  color: #000;
+}
+.sentence-boxes__box {
+  position: relative;
+  flex: none;
+  box-sizing: border-box;
+  height: 1.94em;
+  padding: 0 0.45em;
+  line-height: 1.94em;
+  white-space: nowrap;
+}
+/* 모든 상자의 검정 바탕이 모든 흰 바탕보다 아래에 깔려서, 겹친 부분의 안쪽 선이 없어지고 바깥 윤곽선만 남음 */
+.sentence-boxes__box::before,
+.sentence-boxes__box::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+.sentence-boxes__box::before {
+  z-index: -2;
+  background: #000;
+  box-shadow: 0 0 0 var(--sb-line) #000;
+}
+.sentence-boxes__box::after {
+  z-index: -1;
+  background: #fff;
+}

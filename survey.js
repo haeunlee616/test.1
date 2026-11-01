@@ -36,7 +36,8 @@ const QUESTIONS = [
     title: "최근 몇 년 사이,\n‘실패'라고 생각했던 경험이 있나요?",
     sub: '그 때 무슨 일이 있었는지 자유롭게 적어주세요.',
     placeholder: '원하는 회사에 지원했지만 최종 면접에서 떨어졌어요.',
-    max: 100,
+    max: 30,                            // 띄어쓰기를 뺀 글자 수
+    skipSpaces: true,
     qTop: 211,
   },
   {
@@ -141,6 +142,19 @@ function setBar(index, done = false) {
 
 // ---------- 질문별 화면 만들기 ----------
 const chars = (text) => Array.from(text);
+// 글자 수: skipSpaces 질문은 띄어쓰기(공백)를 세지 않음
+const textLength = (q, text) => (q.skipSpaces ? chars(text).filter((c) => !/\s/.test(c)).length : chars(text).length);
+// max 글자를 넘는 부분 자르기 (skipSpaces 질문은 max 번째 글자 뒤의 글자부터 자름)
+function clampText(q, text, max) {
+  if (!q.skipSpaces) return chars(text).slice(0, max).join('');
+  let n = 0;
+  let out = '';
+  for (const c of chars(text)) {
+    if (!/\s/.test(c) && ++n > max) break;
+    out += c;
+  }
+  return out;
+}
 
 function buildChoices(i, q) {
   const picked = new Set(answers[i] || []);
@@ -407,7 +421,7 @@ function renderQuestion(i) {
   if (isTextual(q)) {
     answerEl.placeholder = q.placeholder || '';
     answerEl.value = answers[i] || '';
-    countEl.textContent = `(${chars(answerEl.value).length}/${maxChars()})`;
+    countEl.textContent = `(${textLength(q, answerEl.value)}/${maxChars()})`;
   } else if (q.type === 'choice') {
     buildChoices(i, q);
   } else if (q.type === 'colors') {
@@ -449,18 +463,19 @@ function updateNext() {
   nextBtn.disabled = !isAnswered(qi) || finished;
 }
 
-// ---------- 글 입력: 공백 포함 200자까지 (닉네임은 10자) ----------
+// ---------- 글 입력: 설문2는 띄어쓰기 빼고 30자까지, 닉네임은 10자 ----------
 function enforceLimit() {
+  const q = QUESTIONS[qi];
   const max = maxChars();
-  const list = chars(answerEl.value);
-  if (list.length > max) {
-    const pos = Math.min(answerEl.selectionStart, max);
-    answerEl.value = list.slice(0, max).join('');
+  if (textLength(q, answerEl.value) > max) {
+    const text = clampText(q, answerEl.value, max);
+    const pos = Math.min(answerEl.selectionStart, chars(text).length);
+    answerEl.value = text;
     answerEl.setSelectionRange(pos, pos);
   }
 }
 function onAnswerInput() {
-  countEl.textContent = `(${chars(answerEl.value).length}/${maxChars()})`;
+  countEl.textContent = `(${textLength(QUESTIONS[qi], answerEl.value)}/${maxChars()})`;
   answers[qi] = answerEl.value;
   updateNext();
 }
