@@ -1,7 +1,7 @@
 // ---------- 결과지 디자인 활용 규칙 (결과지 예시 이미지 기준) ----------
 // 설문 응답을 결과지의 어느 자리에, 어떤 모양으로 넣는지 정해 둔 규칙입니다. (아직 결과지 화면은 그리지 않음)
 // Result.fromSurvey(응답들) → { nickname, sentence, situation, criteria, interpretation } 로 결과지에 들어갈 값을 만들어 줍니다.
-// 응답들: survey.js 의 answers 배열(또는 window.surveyAnswers) — [닉네임, 문장, 설문3 옵션들, 설문4 옵션들, ...]
+// 응답들: survey.js 의 answers 배열(또는 window.surveyAnswers) — [닉네임, 문장, 설문3 옵션들, 설문4 옵션들, 설문5 옵션들, 설문6 색, 설문7 이름·뜻풀이]
 
 // ----- 자리 규칙 -----
 const RESULT_PLACEMENT = {
@@ -20,6 +20,32 @@ const RESULT_PLACEMENT = {
   interpretation: {                             // 설문1~4 를 참고한 AI 해석 → 'Then' 표의 '해석' 칸
     from: [1, 2, 3, 4], place: "'Then' 표 > 해석",
   },
+  frameColor: {                                 // 설문6 '지금' 색 → 앞면 가운데 네모 칸의 바탕(예시의 라임색 자리)
+    from: 6, place: '앞면 가운데 네모 칸 바탕',
+  },
+  word: {                                       // 설문7 첫 칸 → 영어 단어 → 가운데 네모 칸의 큰 글자 (예: 재시작 → New Beginning)
+    from: 7, place: '가운데 네모 칸 큰 글자',
+    front: '글자 안에 사진(설문5 사진)이 들어감',
+    back: '사진이 배경, 글자는 설문6 \'지금\' 색으로 채워 반전',
+  },
+  meaning: {                                    // 설문5 옵션 → 'Now' 표의 '의미' 칸
+    from: 5, place: "'Now' 표 > 의미", separator: ' • ',
+  },
+  newStart: {                                   // 설문7 첫 칸 → 'Now' 표 둘째 줄의 제목(예시의 '새로운 시작' 자리)
+    from: 7, place: "'Now' 표 > 새로운 시작 칸 제목",
+  },
+  definition: {                                 // 설문7 둘째 칸 → 같은 줄의 내용(예시의 '끝인줄 알았지만 또다른 기회의 시작' 자리)
+    from: 7, place: "'Now' 표 > 새로운 시작 칸 내용",
+  },
+  example: {                                    // 설문7 첫 칸·둘째 칸을 보고 AI 가 쓰는 예문 → 'Now' 표의 '예문' 칸
+    from: 7, place: "'Now' 표 > 예문",
+  },
+};
+
+// ----- 큰 글자(영어 단어) 모양 -----
+const WORD_STYLE = {
+  font: 'American Typewriter', weight: 700,
+  outline: { dash: 2, gap: 2 },                 // 글자 둘레를 2px 선, 2px 빈칸으로 반복한 점선 윤곽선
 };
 
 // ----- 판단 기준: 설문4 옵션 분류 -----
@@ -70,6 +96,37 @@ async function interpret(responses) {
   }
 }
 
+// ----- 큰 글자: 설문7 첫 칸 → 영어 단어 -----
+// 영어로 입력했으면 그대로 쓰되 각 단어의 첫 글자를 대문자로, 한글이 들어 있으면 AI 로 영어 번역(Result.translateWord)
+const hasHangul = (text) => /[ㄱ-ㅎㅏ-ㅣ가-힣]/.test(text);
+const capitalizeWords = (text) => String(text).trim().split(/\s+/).map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+function englishWord(input) {
+  const text = String(input || '').trim();
+  if (!text) return { input: text, needsTranslation: false, english: '' };
+  if (hasHangul(text)) return { input: text, needsTranslation: true, english: null };
+  return { input: text, needsTranslation: false, english: capitalizeWords(text) };
+}
+
+// 서버(/api/…)에 물어서 문장을 받음. 키가 없거나 실패하면 null
+async function askServer(path, body) {
+  try {
+    const res = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    if (!res.ok) return null;
+    return (await res.json()).text || null;
+  } catch (err) {
+    return null;
+  }
+}
+// 설문7 첫 칸 → 큰 글자에 들어갈 영어 단어 (영어면 바로, 한글이면 AI 번역)
+async function translateWord(input) {
+  const word = englishWord(input);
+  if (!word.needsTranslation) return word.english;
+  const text = await askServer('/api/translate', { word: word.input });
+  return text ? capitalizeWords(text.replace(/[.。]+$/, '')) : null;
+}
+// 'Now' 표 예문: 설문7 첫 칸·둘째 칸 → 예문 한 문장
+const exampleSentence = (word, meaning) => askServer('/api/example', { word, meaning });
+
 // ----- 설문 응답 → 결과지에 들어갈 값 -----
 function fromSurvey(responses) {
   const pick = (n) => {                          // answers 배열이든 surveyAnswers([{question, answer}])든 받음
@@ -81,16 +138,29 @@ function fromSurvey(responses) {
   const selectedSituation = pick(2) || [];
   const selectedCriteria = pick(3) || [];
   const input = { nickname, sentence, situation: selectedSituation, criteria: selectedCriteria };
+  const selectedMeaning = pick(4) || [];
+  const colors = pick(5) || {};
+  const define = pick(6) || {};
+  const hero = window.Stickers ? window.Stickers.heroFor(selectedMeaning) : null;
   return {
     nickname,                                                         // → Nickname.render(nickname)
     sentence,                                                         // → Sentence.segment(sentence) 로 나눈 뒤 Sentence.render
     situation: situationText(selectedSituation),                      // 'Then' > 상황
     criteria: criteriaShare(selectedCriteria),                        // 'Then' > 판단 기준 (.text)
     interpretation: { input, prompt: InterpretationPrompt.prompt(input) },   // 실제 문장은 Result.interpret(응답) 으로 받음
+    frameColor: colors.now || null,                                   // 앞면 바탕색(설문6 '지금') · 뒷면 글자색
+    word: englishWord(define.word),                                   // 큰 글자 (한글이면 Result.translateWord 로 영어를 받음)
+    hero,                                                             // 설문5 사진 (없으면 null — 나중에 AI 이미지가 들어올 자리)
+    now: {
+      meaning: (selectedMeaning || []).join(RESULT_PLACEMENT.meaning.separator),   // 'Now' > 의미
+      newStart: define.word || '',                                    // 'Now' > 새로운 시작 칸 제목
+      definition: define.meaning || '',                               // 'Now' > 새로운 시작 칸 내용
+    },
   };
 }
 
 window.Result = {
   placement: RESULT_PLACEMENT, externalCriteria: EXTERNAL_CRITERIA, criteriaIgnored: CRITERIA_IGNORED,
   criteriaShare, situationText, interpretationExample: InterpretationPrompt.EXAMPLE, fromSurvey, interpret,
+  wordStyle: WORD_STYLE, englishWord, translateWord, exampleSentence,
 };

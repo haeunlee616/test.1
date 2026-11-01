@@ -29,7 +29,7 @@ const LINE_FILES = {
   regret: 'assets/stickers/regret.png',     // 'Lingering Regret Feelings' 글씨 (받은 파일 그대로)
 };
 const OPTION_LINES = {
-  '기대와의 불일치': LINE_FILES.puzzle,
+  '사회적 기준': LINE_FILES.puzzle,
   '자기 실망': LINE_FILES.person,
   '취업·합격 여부': LINE_FILES.fail,
   '후회와 미련': LINE_FILES.regret,
@@ -39,7 +39,7 @@ const lineFor = (option) => OPTION_LINES[option] || null;
 // ---------- 설문5 '남긴 의미·영향' 옵션 ↔ 이미지 (6번의 '지금' 색을 입힘) ----------
 // 기본: 검정 잉크만 '지금' 색으로 (흰 테두리·하프톤·질감 유지).  box: 사진은 그대로, 사진 뒤 별 모양 상자에 색을 입힘.
 const NOW_FILES = {
-  experience: { src: 'assets/stickers/experience.png' },                                         // 경험: 글자색
+  experience: { src: 'assets/stickers/experience.png', plain: true },                           // 경험: 색을 입히지 않음 (검정 글자 + 흰 테두리 그대로)
   challenge: { src: STICKER_FILES.challenge },                                                  // 도전 (설문3 '도전' 과 같은 이미지)
   start: { src: 'assets/stickers/start.png' },                                                  // 시작
   power: { src: 'assets/stickers/power.webp', box: 'assets/stickers/power-box.png' },           // 동력: 별 상자 색
@@ -51,6 +51,18 @@ const OPTION_NOW_STICKERS = {
   '동력': NOW_FILES.power,
 };
 const nowStickerFor = (option) => OPTION_NOW_STICKERS[option] || null;
+
+// 설문5 옵션 → 결과지 가운데 프레임의 큰 사진. 몇 개를 골랐든 아래 목록 앞쪽 옵션이 하나라도 있으면 그 사진을 씀
+// (나중에 미드저니 이미지가 들어올 자리 — 지금은 '시작'이면 항상 이 사진으로 고정)
+const HERO_IMAGES = [
+  { option: '시작', src: 'assets/hero/start.jpg' },
+];
+const HERO_FALLBACK = 'assets/hero/start.jpg';    // 임시: 해당하는 옵션이 없어도 같은 사진을 계속 씀 (미드저니 이미지가 준비되면 null 로 바꿔 구분)
+const heroFor = (selected) => {
+  const picked = new Set(selected || []);
+  const hit = HERO_IMAGES.find((h) => picked.has(h.option));
+  return hit ? hit.src : HERO_FALLBACK;
+};
 
 const stickerImages = {};
 function loadSticker(src) {
@@ -114,15 +126,26 @@ async function tintSticker(option, hex) {
   const src = stickerFor(option);
   return src ? inkTint(src, hex) : null;
 }
-// 설문5 이미지 + 6번 '지금' 색
+// 색을 입히지 않고 원본 그대로 <canvas> 로
+async function plainSticker(src) {
+  const img = await loadSticker(src);
+  const canvas = document.createElement('canvas');
+  canvas.width = img.naturalWidth;
+  canvas.height = img.naturalHeight;
+  canvas.getContext('2d').drawImage(img, 0, 0);
+  return canvas;
+}
+// 설문5 이미지 + 6번 '지금' 색 ('경험'은 사용자가 고른 색과 상관없이 원본 그대로)
 async function tintNowSticker(option, hex) {
   const entry = nowStickerFor(option);
   if (!entry) return null;
+  if (entry.plain) return plainSticker(entry.src);
   return entry.box ? boxTint(entry, hex) : inkTint(entry.src, hex);
 }
 
 window.Stickers = {
   files: STICKER_FILES, byOption: OPTION_STICKERS, forOption: stickerFor, tint: tintSticker,   // 설문3: 색을 입히는 이미지
   lineFiles: LINE_FILES, lineByOption: OPTION_LINES, lineForOption: lineFor,                    // 설문4: 검정 그대로 쓰는 이미지
+  heroFor, heroImages: HERO_IMAGES,                                                               // 설문5: 가운데 프레임의 큰 사진
   nowFiles: NOW_FILES, nowByOption: OPTION_NOW_STICKERS, nowForOption: nowStickerFor, tintNow: tintNowSticker,   // 설문5: '지금' 색을 입히는 이미지
 };

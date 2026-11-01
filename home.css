@@ -1746,3 +1746,48 @@ html, body {
   z-index: -1;
   background: #fff;
 }
+
+/* ---------- 결과지 (앞면·뒷면) — 시안 크기 1050×1407 을 화면 높이에 맞춰 줄여서 보여 줌 ---------- */
+.result-layer { position: fixed; inset: 0; z-index: 90; display: none; overflow: hidden; background: #e9e9e9; }
+.result-layer.is-on { display: block; }
+.rs-stage { position: absolute; left: 50%; top: 0; width: 1050px; height: 1407px; transform: translateX(-50%) scale(var(--rs-scale, 1)); transform-origin: top center; }
+.rs-sheet { width: 1050px; height: 1407px; perspective: 3000px; }
+.rs-card { position: relative; width: 100%; height: 100%; transform-style: preserve-3d; transition: transform 0.9s cubic-bezier(0.6, 0, 0.2, 1); }
+.rs-sheet.is-flipped .rs-card { transform: rotateY(180deg); }
+.rs-face { position: absolute; inset: 0; overflow: hidden; background: #fff; backface-visibility: hidden; color: #000; }
+.rs-face--back { transform: rotateY(180deg); }
+.rs-hint { position: fixed; left: 50%; bottom: 12px; z-index: 5; transform: translateX(-50%); padding: 6px 14px; border-radius: 999px; background: rgba(255, 255, 255, 0.88); font: 500 13px "Pretendard", sans-serif; letter-spacing: -0.04em; color: #555; white-space: nowrap; }
+
+/* 머리: 회색 띠 + failure / noun (NO SUCCESS) + 닉네임 문구 */
+.rs-head { position: absolute; left: 0; top: 0; width: 1050px; height: 216px; background: #444 url("assets/result/header.png") center / cover; }
+.rs-head img, .rs-head .rs-nick { position: absolute; display: block; }
+.rs-head__failure { left: 47px; top: 54px; width: 184px; }
+.rs-head__noun { left: 50px; top: 123px; width: 73px; }
+.rs-head__no { left: 141px; top: 122px; width: 196px; }
+.rs-head .rs-nick { left: 735px; top: 108px; }
+
+/* 가운데 네모 칸 */
+.rs-frame { position: absolute; box-sizing: border-box; border: 2px solid #000; }
+.rs-art { position: absolute; inset: 0; overflow: hidden; background-size: cover; background-position: center; }
+.rs-word { position: absolute; left: 0; top: 0; z-index: 2; }
+.rs-sticker { position: absolute; display: block; height: auto; z-index: 3; }
+.rs-sticker[data-kind="line"] { z-index: 1; }            /* 설문4 선 그림은 큰 글자보다 아래 */
+.rs-sentence { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 10; }
+.rs-handle { position: absolute; box-sizing: border-box; width: 22px; height: 22px; background: #fff; border: 2px solid #000; }
+.rs-handle--tl { left: -12px; top: -12px; }
+.rs-handle--tr { right: -12px; top: -12px; }
+.rs-handle--bl { left: -12px; bottom: -12px; }
+.rs-handle--br { right: -12px; bottom: -12px; }
+
+/* 표 (Then · Now) */
+.rs-table { position: absolute; font-family: "Pretendard", sans-serif; font-size: 23px; letter-spacing: -0.04em; }
+.rs-then { left: 40px; top: 971px; width: 430px; }
+.rs-now { left: 570px; top: 987px; width: 432px; }
+.rs-table__title { height: 22px; margin-bottom: 29px; background: center left / auto 22px no-repeat; text-indent: -9999px; overflow: hidden; }
+.rs-then .rs-table__title { background-image: url("assets/result/then.png"); }
+.rs-now .rs-table__title { background-image: url("assets/result/now.png"); margin-bottom: 17px; }
+.rs-row { display: flex; box-sizing: border-box; border-top: 3px solid #000; padding: 10px 0 9px; line-height: 30px; }
+.rs-row__label { flex: none; width: 146px; font-weight: 600; }
+.rs-now .rs-row__label { width: 148px; }
+.rs-row__value { flex: 1; font-weight: 400; word-break: break-all; }
+.rs-divider { position: absolute; left: 524px; top: 957px; width: 2px; height: 413px; background: #000; }

@@ -33,7 +33,49 @@
     ],
   });
 
-  const api = { EXAMPLE, SYSTEM, input, prompt };
+  // ----- 설문7 첫 칸(이름 붙인 단어) → 영어 단어 (결과지 큰 글자) -----
+  const TRANSLATE_SYSTEM = [
+    '한국어 단어나 짧은 표현을 사전 표제어처럼 짧은 영어로 옮깁니다.',
+    '- 뜻이 가장 잘 통하는 자연스러운 영어 명사(구) 하나로 씁니다. 1~4 단어.',
+    '- 영어에서 자연스러우면 맨 앞에 관사 A / An 을 붙이고, 아니면 붙이지 않습니다. (예: 재시작 → A New Beginning, 도전 → Challenge)',
+    '- 각 단어의 첫 글자는 대문자, 나머지는 소문자입니다.',
+    '- 결과만 출력합니다. 설명·따옴표·마침표·한국어는 붙이지 않습니다.',
+  ].join('\n');
+  const translatePrompt = (word) => ({
+    system: TRANSLATE_SYSTEM,
+    messages: [
+      { role: 'user', content: '재시작' },
+      { role: 'assistant', content: 'A New Beginning' },
+      { role: 'user', content: '도전' },
+      { role: 'assistant', content: 'Challenge' },
+      { role: 'user', content: String(word) },
+    ],
+  });
+
+  // ----- 설문7 첫 칸 + 뜻풀이 → 사전 예문 ('Now' 표의 예문 칸) -----
+  const SENTENCE_EXAMPLE = {
+    word: '새로운 시작',
+    meaning: '끝인줄 알았지만 또다른 기회의 시작',
+    sentence: '모든 것이 끝났다고 생각했던 순간은 어쩌면 새로운 시작을 맞이하기 위한 또 다른 기회의 문턱이었을지도 모른다.',
+  };
+  const SENTENCE_SYSTEM = [
+    '당신은 사전의 예문을 쓰는 편집자입니다. 참여자가 자기 경험에 붙인 이름(표제어)과 뜻풀이를 받아, 그 표제어를 문장 안에 쓴 예문 한 문장을 씁니다.',
+    '- 표제어는 글자를 바꾸지 말고 그대로 쓰고, 조사만 자연스럽게 붙입니다.',
+    '- 뜻풀이 문구를 그대로 되풀이하지 말고, 같은 뜻이 담기게 다른 말로 풀어 씁니다.',
+    '- 한 문장, 공백 포함 50~90자. 사전 예문처럼 담담한 평서문(~다)입니다. 존댓말·물음표·느낌표·조언은 쓰지 않습니다.',
+    '- 문장만 출력합니다. 따옴표·설명은 붙이지 않습니다.',
+  ].join('\n');
+  const sentenceInput = (a) => `표제어: ${a.word}\n뜻풀이: ${a.meaning}`;
+  const sentencePrompt = (a) => ({
+    system: SENTENCE_SYSTEM,
+    messages: [
+      { role: 'user', content: sentenceInput(SENTENCE_EXAMPLE) },
+      { role: 'assistant', content: SENTENCE_EXAMPLE.sentence },
+      { role: 'user', content: sentenceInput(a) },
+    ],
+  });
+
+  const api = { EXAMPLE, SYSTEM, input, prompt, translatePrompt, sentencePrompt, SENTENCE_EXAMPLE };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.InterpretationPrompt = api;
 })(typeof window !== 'undefined' ? window : globalThis);
