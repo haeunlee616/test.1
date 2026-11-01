@@ -1820,10 +1820,10 @@ html, body {
 /* 표 (Then · Now) */
 .rs-table { position: absolute; font-family: "Pretendard", sans-serif; font-size: 23px; letter-spacing: -0.04em; }
 .rs-then { left: 40px; top: 971px; width: 430px; }
-.rs-now { left: 570px; top: 987px; width: 432px; }
+.rs-now { left: 570px; top: 974px; width: 432px; }      /* Then 과 제목 높이를 맞춤 (시안처럼 3px 만 아래) */
 .rs-table__title { height: 22px; margin-bottom: 29px; background: center left / auto 22px no-repeat; text-indent: -9999px; overflow: hidden; }
 .rs-then .rs-table__title { background-image: url("assets/result/then.png"); }
-.rs-now .rs-table__title { background-image: url("assets/result/now.png"); margin-bottom: 17px; }
+.rs-now .rs-table__title { background-image: url("assets/result/now.png"); margin-bottom: 30px; }
 .rs-row { position: relative; display: flex; box-sizing: border-box; padding: 10px 0 9px; line-height: 30px; }
 .rs-row::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 3px; background: #000; transform: scaleX(0); transform-origin: left; transition: transform 0.5s cubic-bezier(0.6, 0, 0.2, 1); }
 .rs-row.is-drawn::before { transform: scaleX(1); }
