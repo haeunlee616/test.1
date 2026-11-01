@@ -597,6 +597,7 @@ window.releaseTrail = function ({ word, color } = {}) {
       // 새 이름이 가볍게 떠오르며 사라짐 → 결과 화면으로
       await tween(520, (t) => { keep.y -= 1.2; keep.sx = keep.sy = 1 + 0.25 * t; keep.forceOp = 1 - t; });
       keep.el.style.display = 'none';
+      trailBoxes.forEach((b) => { b.el.style.display = 'none'; });   // 혹시 남은 꼬리표가 있어도 모두 치움
       trailOn = false;
       release = null;
       resolve();
