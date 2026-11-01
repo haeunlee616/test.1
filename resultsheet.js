@@ -526,12 +526,6 @@
     layer.id = 'result-layer';
     layer.innerHTML = '';
     document.body.classList.add('is-result');
-    // 맨 위·아래 고정 메뉴의 글자를 결과 화면용으로
-    const navL = document.getElementById('contact-btn');
-    const navR = document.getElementById('about-btn');
-    if (navL) navL.textContent = 'archive';
-    if (navR) navR.textContent = 'publication';
-
     const rp = el('div', 'rp', layer);
     rp.dataset.stage = '1';
     const scroll = el('div', 'rp-scroll', rp);

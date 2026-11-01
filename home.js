@@ -1,8 +1,8 @@
-// contact / about 은 지금은 자리표시 링크(#contact, #about)입니다.
+// 상단 archive / publication 은 지금은 자리표시 링크(#archive, #publication)입니다.
 // 연결할 페이지가 정해지면 아래 주소만 바꾸면 됩니다.
 const LINKS = {
-  'contact-btn': '#contact',
-  'about-btn': '#about',
+  'archive-btn': '#archive',
+  'publication-btn': '#publication',
 };
 
 for (const [id, href] of Object.entries(LINKS)) {
@@ -10,96 +10,66 @@ for (const [id, href] of Object.entries(LINKS)) {
   if (el) el.setAttribute('href', href);
 }
 
-// ---------- 넘어가는 장(leaf): 모서리부터 들리며 대각선 접힘선이 쓸고 지나가는 종이 말림 ----------
-// 접힘선: n·p = s (p 는 책등 왼쪽 위를 원점으로 한 종이 위의 좌표, y 는 아래쪽이 +).
-//  - 시작: 위쪽 오른쪽 모서리를 스치는 대각선(n 이 오른쪽 위를 향함, 45°)
-//  - 진행하면서 n 이 점점 수평(0°)으로 눕고 s 가 0 으로 줄어, 마지막엔 접힘선이 책등(x=0)과 겹침
-//  - 접힘선 너머 부분(flap)은 접힘선을 기준으로 뒤집어 그리고(반사 행렬), 남은 부분(stay)은 그대로 둠
-const CURL_START_ANGLE = Math.PI / 4;
-
-function clipHalfPlane(poly, nx, ny, s, keepGreater) {
-  const sign = keepGreater ? 1 : -1;
-  const out = [];
-  for (let i = 0; i < poly.length; i++) {
-    const A = poly[i];
-    const B = poly[(i + 1) % poly.length];
-    const da = sign * (nx * A.x + ny * A.y - s);
-    const db = sign * (nx * B.x + ny * B.y - s);
-    if (da >= 0) out.push(A);
-    if ((da >= 0) !== (db >= 0)) {
-      const t = da / (da - db);
-      out.push({ x: A.x + (B.x - A.x) * t, y: A.y + (B.y - A.y) * t });
-    }
-  }
-  return out;
-}
-const polyCss = (pts) => (pts.length >= 3
-  ? `polygon(${pts.map((q) => `${q.x.toFixed(2)}px ${q.y.toFixed(2)}px`).join(',')})`
-  : 'polygon(0 0, 0 0, 0 0)');
-
-// 종이 두께: 들려 있는 면(flap) 뒤에 같은 모양의 가장자리 층을 조금씩 어긋나게 깔아서, 얇은 종이의 단면이 보이게 함
-const RIM_COLORS = ['#8f8a78', '#aaa591', '#cbc6b5']; // 가장 먼 층 → 가장 가까운 층 (종이 단면의 음영)
-const RIM_STEP = 2.0;                                 // 층 하나당 두께 (디자인 px) — 들려 있을 때 전체 약 5px
+// ---------- 넘어가는 장(leaf): 8조각으로 나뉜 종이가 책등을 축으로 3D 로 휘어 넘어감 ----------
+// 한 장을 세로 8조각으로 나누고(서로 이어 붙은 구조), 조각마다 책등에서 멀수록 조금씩 더 꺾어서 종이가 휘는 모양을 만듦.
+//  - 앞면 = 오른쪽에 있을 때 보이는 쪽, 뒷면 = 넘어간 뒤 왼쪽에서 보이는 쪽
+//  - 처음엔 손으로 잡은 가장자리가 먼저 들리고(앞서감), 넘어가는 동안엔 가장자리가 공기에 밀려 뒤처졌다가(뒤처짐) 책 위에 납작하게 내려앉음
+//  - 조각마다 기울어진 각도에 따라 음영을 달리해 휜 면이 입체로 보이게 함
+const LEAF_STRIPS = 8;        // 조각 수 (느리면 줄이세요: 6 이나 4)
+const LEAF_LAG_DEG = 5.4;     // 넘어가는 중 조각마다 뒤처지는 각도(도)
+const LEAF_LEAD_DEG = 3.6;    // 처음 가장자리가 먼저 들리는 각도(도)
 
 function buildLeaf(leaf) {
   const { front, back } = leaf.dataset;
-  const rims = RIM_COLORS.map((color) => `<div class="leaf__flap leaf__rim"><div class="leaf__rim-fill" style="background:${color};-webkit-mask-image:url('${back}');mask-image:url('${back}')"></div></div>`).join('');
-  leaf.innerHTML = `
-    <div class="leaf__stay"><img src="${front}" alt=""><div class="leaf__crease leaf__crease--stay"><i></i></div></div>
-    <div class="leaf__flap-wrap">${rims}<div class="leaf__flap leaf__flap--face"><img src="${back}" alt=""><div class="leaf__crease leaf__crease--flap"><i></i></div></div></div>`;
-  leaf._curl = {
-    stay: leaf.querySelector('.leaf__stay'),
-    wrap: leaf.querySelector('.leaf__flap-wrap'),
-    flap: leaf.querySelector('.leaf__flap--face'),
-    rims: [...leaf.querySelectorAll('.leaf__rim')],
-    creaseStay: leaf.querySelector('.leaf__crease--stay'),
-    creaseFlap: leaf.querySelector('.leaf__crease--flap'),
-    last: -1,
-  };
+  const N = LEAF_STRIPS;
+  const strips = [];
+  const shades = [];
+  let parent = leaf;
+  for (let k = 0; k < N; k++) {
+    const s = document.createElement('div');
+    s.className = 'lf-s';
+    if (k === 0) s.classList.add('lf-s--root');
+    const face = (cls, img, pos) => `<i class="lf-f ${cls}" style="background-image:url('${img}');background-position:${pos} 0"><b class="lf-sh"></b></i>`;
+    s.innerHTML = face('lf-front', front, `calc(var(--sw) * ${-k})`) + face('lf-back', back, `calc(var(--sw) * ${-(N - 1 - k)})`);
+    parent.appendChild(s);
+    strips.push(s);
+    shades.push(...s.querySelectorAll('.lf-sh'));
+    parent = s;
+  }
+  leaf._curl = { strips, shades, last: -1 };
 }
 
 function updateCurl(leaf, p) {
   const c = leaf._curl;
-  const W = leaf.offsetWidth;
-  const H = leaf.offsetHeight;
-  if (!W || !H) return;
-  const a = CURL_START_ANGLE * (1 - p);
-  const nx = Math.cos(a);
-  const ny = -Math.sin(a);
-  const s = W * Math.cos(CURL_START_ANGLE) * (1 - p);
-  const rect = [{ x: 0, y: 0 }, { x: W, y: 0 }, { x: W, y: H }, { x: 0, y: H }];
-  const stayPoly = clipHalfPlane(rect, nx, ny, s, false);
-  const flapPoly = clipHalfPlane(rect, nx, ny, s, true);
-  const hasStay = stayPoly.length >= 3 && p < 0.9995;
-  const hasFlap = flapPoly.length >= 3 && p > 0.0005;
+  const N = c.strips.length;
+  const lead = p < 0.3 ? -LEAF_LEAD_DEG * Math.sin((Math.PI * p) / 0.3) : 0;
+  const lag = LEAF_LAG_DEG * Math.pow(Math.sin(Math.PI * Math.min(1, Math.max(0, p))), 1.6);
+  const inc = (lead + lag) * (6 / N);                    // 조각 수가 달라져도 전체 휨의 크기는 같게
+  let world = -180 * p;                                  // 책등 조각의 각도(도)
+  c.strips.forEach((s, k) => {
+    if (k > 0) world += inc;
+    s.style.transform = k === 0 ? `rotateY(${world.toFixed(3)}deg)` : `rotateY(${inc.toFixed(3)}deg)`;
+    // 음영: 책 면과 나란할수록 밝고, 서 있을수록 어두움 (살짝 위에서 오는 빛)
+    const rad = (world * Math.PI) / 180;
+    const dark = 0.2 * Math.pow(1 - Math.abs(Math.cos(rad)), 1.4) + 0.04 * Math.sin(Math.PI * p) * (k / N);
+    const a = Math.min(0.32, dark).toFixed(3);
+    c.shades[k * 2].style.opacity = a;
+    c.shades[k * 2 + 1].style.opacity = a;
+  });
+  leaf.dataset.p = p.toFixed(4);
+}
 
-  c.stay.style.display = hasStay ? '' : 'none';
-  c.stay.style.clipPath = polyCss(stayPoly);
-  c.wrap.style.display = hasFlap ? '' : 'none';
-  if (hasFlap) {
-    // 접힘선을 기준으로 한 반사: p' = p - 2 (n·p - s) n
-    const m = [1 - 2 * nx * nx, -2 * nx * ny, -2 * nx * ny, 1 - 2 * ny * ny, 2 * s * nx, 2 * s * ny];
-    const matrix = `matrix(${m.map((v) => v.toFixed(5)).join(',')})`;
-    const clip = polyCss(flapPoly);
-    c.flap.style.clipPath = clip;
-    c.flap.style.transform = matrix;
-    const k = Math.sin(Math.PI * Math.min(1, p)); // 들려 있는 정도: 중간에 가장 높고 끝에는 책 위에 납작하게 내려앉음
-    // 두께: 들려 있을수록(k) 단면이 더 두껍게 보이고, 책 위에 놓이면 사라짐
-    const rimCount = c.rims.length;
-    c.rims.forEach((rim, idx) => {
-      const d = (rimCount - idx) * RIM_STEP * unit * Math.pow(k, 0.8);
-      rim.style.clipPath = clip;
-      rim.style.transform = `translate(${(d * -0.8).toFixed(2)}px, ${(d * 0.9).toFixed(2)}px) ${matrix}`;
-    });
-    c.wrap.style.filter = `drop-shadow(0 ${(5 * unit * k).toFixed(2)}px ${(10 * unit * k).toFixed(2)}px rgba(0,0,0,${(0.42 * k).toFixed(3)}))`;
+// 넘어가는 장이 아래 쪽에 드리우는 그림자(오른쪽 쪽 위): 가장 높이 들린 장에 맞춰 짙어짐
+function updateFanShadow(leaves) {
+  const el = document.getElementById('fan-shadow');
+  if (!el) return;
+  let m = 0;
+  for (const leaf of leaves) {
+    if (leaf.style.visibility !== 'visible') continue;
+    const p = parseFloat(leaf.dataset.p || '0');
+    if (p > 0.001 && p < 0.985) m = Math.max(m, Math.pow(Math.sin(Math.PI * p), 0.9));
   }
-  const angle = (Math.atan2(ny, nx) * 180) / Math.PI;
-  const tr = `translate(${(s * nx).toFixed(2)}px, ${(s * ny).toFixed(2)}px) rotate(${angle.toFixed(3)}deg)`;
-  c.creaseStay.style.transform = tr;
-  c.creaseFlap.style.transform = tr;
-  const shade = Math.pow(Math.sin(Math.PI * Math.min(1, p * 1.04)), 0.7);
-  c.creaseStay.style.opacity = shade.toFixed(3);
-  c.creaseFlap.style.opacity = shade.toFixed(3);  // 다 넘어가 놓이면 음영이 사라져 왼쪽 페이지가 깨끗하게 남음
+  el.style.opacity = (m * 0.55).toFixed(3);
 }
 
 // ---------- 사전이 펼쳐지는 동시에: 빈 장 여러 개가 한 장씩 촤라락 넘어간 뒤 목표 페이지가 나옴 ----------
@@ -145,6 +115,23 @@ function runFan() {
   setTimeout(() => { pageNext.style.visibility = 'hidden'; }, (fans.length - 1) * FAN_STAGGER_MS + 40);
 }
 
+// 책이 펼쳐진 직후 책등 근처에서 종이 먼지가 떠올랐다 사라짐
+function puffDust() {
+  const rig = document.querySelector('.rig');
+  for (let i = 0; i < 16; i++) {
+    const d = document.createElement('i');
+    d.className = 'book-dust';
+    d.style.setProperty('--x', `${(Math.random() - 0.5) * 520 * unit}px`);
+    d.style.setProperty('--y', `${(-60 - Math.random() * 120) * unit}px`);
+    d.style.setProperty('--dx', `${(Math.random() - 0.5) * 70 * unit}px`);
+    d.style.setProperty('--dy', `${(-70 - Math.random() * 110) * unit}px`);
+    d.style.setProperty('--s', `${(2 + Math.random() * 3).toFixed(1)}px`);
+    d.style.animationDelay = `${Math.random() * 500}ms`;
+    rig.appendChild(d);
+    setTimeout(() => d.remove(), 3200);
+  }
+}
+
 const curlLeaves = [...document.querySelectorAll('.leaf')];
 curlLeaves.forEach((leaf) => {
   buildLeaf(leaf);
@@ -162,6 +149,7 @@ curlLeaves.forEach((leaf) => {
       if (leaf.dataset.fan !== undefined) setFanZ(leaf, p);
     }
   }
+  updateFanShadow(curlLeaves);
   requestAnimationFrame(curlLoop);
 })();
 
@@ -558,52 +546,27 @@ function stepRelease(now, dt) {
   if (!alive && !s.cleared) { s.cleared = true; s.onCleared(); }
 }
 
-window.releaseTrail = function ({ word, color } = {}) {
+window.releaseTrail = function () {
   return new Promise((resolve) => {
     if (!trailOn || !pointer || !trailStarted || release) { resolve(); return; }
-    const keep = trailBoxes[0];                       // 커서에 가장 가까운 한 개는 남음
     const now = performance.now();
-    const boxes = trailBoxes.slice(1).map((b, i) => {
+    const boxes = trailBoxes.map((b, i) => {          // 커서에 가까운 박스부터 줄이 끊겨 하나씩 떨어짐
       b.hPx = b.el.getBoundingClientRect().height;
       b.wPx = b.el.getBoundingClientRect().width;
       b.vx0 = (pointer.x - b.x) * 0.6;               // 지금 커서 쪽으로 달리던 기세
       b.dir = b.x < innerWidth / 2 ? -1 : 1;           // 가까운 가장자리 쪽으로 굴러감
       b.rot = 0;
-      b.releaseAt = now + 150 + i * 90;               // 한 개씩 차례로 끊김
+      b.releaseAt = now + 150 + i * 90;
       return b;
     });
-    const tween = (ms, fn) => new Promise((r) => {
-      const t0 = performance.now();
-      const step = (n) => { const t = Math.min(1, (n - t0) / ms); fn(t); if (t < 1) requestAnimationFrame(step); else r(); };
-      requestAnimationFrame(step);
-    });
-    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
-    const finishKeep = async () => {
-      await wait(250);
-      // 남은 한 개: 글자가 쓱 접혔다가 새 이름으로 바뀌며 '지금' 색으로 물들고 통 튀어 오름
-      keep.forceOp = 1;
-      await tween(140, (t) => { keep.sy = 1 - t; });
-      keep.el.textContent = word || '';
-      keep.el.className = `trail__word ${randomFrom(FONT_CLASSES)}`;
-      keep.el.style.background = color || '#e8ff8e';
-      keep.el.style.fontWeight = '600';
-      keep.el.style.padding = `0 ${14 * unit}px`;
-      keep.el.style.whiteSpace = 'nowrap';
-      keep.el.style.width = 'auto';
-      keep.wPx = Math.max(TRAIL_BOX_W * unit, keep.el.getBoundingClientRect().width);
-      await tween(260, (t) => { const e = 1 - Math.pow(1 - t, 3); keep.sy = e; keep.sx = 1 + 0.35 * Math.sin(t * Math.PI); });
-      keep.sx = 1;
-      await wait(1100);
-      // 새 이름이 가볍게 떠오르며 사라짐 → 결과 화면으로
-      await tween(520, (t) => { keep.y -= 1.2; keep.sx = keep.sy = 1 + 0.25 * t; keep.forceOp = 1 - t; });
-      keep.el.style.display = 'none';
+    const finish = () => {
       trailBoxes.forEach((b) => { b.el.style.display = 'none'; });   // 혹시 남은 꼬리표가 있어도 모두 치움
       trailOn = false;
       release = null;
       resolve();
     };
-    release = { boxes, keep, cleared: false, onCleared: finishKeep };
-    setTimeout(() => { if (release && !release.cleared) { release.cleared = true; finishKeep(); } }, 4800);   // 혹시 화면 밖으로 안 나간 박스가 있어도 이어가기
+    release = { boxes, cleared: false, onCleared: () => setTimeout(finish, 250) };
+    setTimeout(() => { if (release && !release.cleared) { release.cleared = true; finish(); } }, 5200);   // 혹시 화면 밖으로 안 나간 박스가 있어도 이어가기
   });
 };
 
@@ -675,6 +638,7 @@ openBtn.addEventListener('click', (e) => {
   const openEnd = cssSeconds('--open-delay') + cssSeconds('--open-dur');
   setTimeout(runFan, cssSeconds('--open-delay') + FAN_START_AFTER_OPEN_MS); // 표지가 열리는 동시에 촤라락 넘기기 시작
   setTimeout(() => termEl.classList.add('is-visible'), openEnd - 200);
+  setTimeout(puffDust, openEnd + 150);   // 다 펼쳐지고 자리를 잡는 순간 종이 먼지가 살짝 떠오름
   setTimeout(() => playSentence(0), openEnd + 500);
 });
 

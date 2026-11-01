@@ -40,8 +40,32 @@
   ];
   const PAPER_W = 548;              // 정의종이.svg 크기
   const PAPER_H = 477;
-  const STRIKE_FROM = [43.2, 114.3];  // 정의종이.svg 안에서 취소선 시작·끝 (홈화면7 의 선)
-  const STRIKE_TO = [212.1, 108];
+  // 정의종이.svg 안에서 취소선이 그어지는 줄들: failure(홈화면7 의 선) + 종이 위의 나머지 모든 글줄. 손을 그으면 모두 동시에 그어짐
+  // 글줄은 종이와 함께 -2.04° 기울어 있어서 오른쪽으로 갈수록 위로 올라감 (y = c - 기울기 × x)
+  const TILT = Math.tan((2.04 * Math.PI) / 180);
+  const bodyLine = (x0, x1, c, w) => ({ x0, y0: c - TILT * x0, x1, y1: c - TILT * x1, w });
+  const STRIKE_LINES = [
+    { x0: 43.2, y0: 114.3, x1: 212.1, y1: 108, w: 4 },   // failure
+    bodyLine(50, 258, 177.5, 3),                          // noun (NO SUCCESS)
+    bodyLine(50, 283, 251.5, 2.4),                        // (English) (1) the fact of
+    bodyLine(54, 437, 283.5, 2.4),                        // someone or something not succeeding
+    bodyLine(55, 435, 313, 2.4),                          // (2) the fact of not doing something that
+    bodyLine(55, 391, 342.5, 2.4),                        // you must do or are expected to do
+    bodyLine(59, 205, 399.2, 2.4),                        // .... blah blah blah
+  ];
+  // 종이 위에 취소선 선들을 만듦 (CSS 의 dfn-strike 애니메이션이 모두 같은 순간에 그어 줌)
+  (function buildStrikes() {
+    const svg = strikeEl.ownerSVGElement;
+    strikeEl.remove();
+    STRIKE_LINES.forEach((l, i) => {
+      const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      if (i === 0) p.id = 'dfn-strike';
+      p.setAttribute('d', `M${l.x0} ${l.y0.toFixed(2)}L${l.x1} ${l.y1.toFixed(2)}`);
+      p.setAttribute('pathLength', '1');
+      p.style.strokeWidth = String(l.w);
+      svg.appendChild(p);
+    });
+  })();
 
   let state = 'idle';   // idle → rising → waiting → struck → crumpling → done
   let nextFn = null;
@@ -365,11 +389,14 @@ void main() {
     await imgEl.decode().catch(() => {});
     tx.drawImage(imgEl, 0, 0, tex.width, tex.height);
     tx.strokeStyle = '#000';
-    tx.lineWidth = 4 * TS;
-    tx.beginPath();
-    tx.moveTo(STRIKE_FROM[0] * TS, STRIKE_FROM[1] * TS);
-    tx.lineTo(STRIKE_TO[0] * TS, STRIKE_TO[1] * TS);
-    tx.stroke();
+    tx.lineCap = 'butt';
+    STRIKE_LINES.forEach((l) => {
+      tx.lineWidth = l.w * TS;
+      tx.beginPath();
+      tx.moveTo(l.x0 * TS, l.y0 * TS);
+      tx.lineTo(l.x1 * TS, l.y1 * TS);
+      tx.stroke();
+    });
 
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     glEl.width = Math.round(window.innerWidth * dpr);

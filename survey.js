@@ -498,50 +498,152 @@ answerEl.addEventListener('compositionend', () => {
   onAnswerInput();
 });
 
-// ---------- 배경이 흰색으로 바뀌는 질문(Q5): 라임색 원이 next 버튼에서 퍼졌다가 흰색으로 식음 ----------
-const WIPE_COVER_MS = 1000;  // 라임 원이 화면을 덮는 시간
-const WIPE_HOLD_MS = 450;    // 라임 한 색으로 꽉 찬 채로 머무는 시간
-const WIPE_OPEN_MS = 950;    // 같은 자리에서 흰색 구멍이 퍼지며 라임을 밀어내는 시간
+// ---------- 배경이 흰색으로 바뀌는 질문(Q5): 질문 종이가 위로 걷히며 뒤에서 라임색 새 종이가 드러남 ----------
+// 설문4 '실패라고 생각한 계기'(어두운 쪽) → 설문5 '남긴 의미·영향'(밝은 쪽): 종이 한 장을 걷어내고 새 종이를 펼치는 느낌
+const PEEL_MS = 1100;        // 질문 종이가 위로 걷히는 시간
+const PEEL_HOLD_MS = 350;    // 라임색 새 종이가 드러난 채로 머무는 시간
+const PEEL_WHITE_MS = 750;   // 새 종이가 라임색에서 흰색으로 밝아지는 시간
 let wiping = false;
 function limeWipe(next) {
   wiping = true;
   nextBtn.disabled = true;
   setBar(next);
-  surveyEl.classList.add('is-swapping');
 
-  const r = nextBtn.getBoundingClientRect();
-  const x = r.left + r.width / 2;
-  const y = r.top + r.height / 2;
-  const radius = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y)) + 4;
-  const wipe = document.createElement('div');
-  wipe.className = 'survey-wipe';
-  wipe.style.background = '#e8ff8e';
-  layerEl.appendChild(wipe);
+  // 걷히는 종이 뒤에 깔릴 라임색 새 종이
+  const under = document.createElement('div');
+  under.style.cssText = 'position:fixed;inset:0;z-index:4;background:#e8ff8e;pointer-events:none';
+  document.body.appendChild(under);
 
-  const spread = wipe.animate(
-    [{ clipPath: `circle(0px at ${x}px ${y}px)` }, { clipPath: `circle(${radius}px at ${x}px ${y}px)` }],
-    { duration: WIPE_COVER_MS, easing: 'cubic-bezier(0.6, 0, 0.2, 1)', fill: 'forwards' }
-  );
-  spread.onfinish = () => {
-    renderQuestion(next);                       // 라임에 완전히 덮인 동안 다음 질문·흰 배경으로 교체
+  // 질문 종이(설문 레이어 전체)가 아래쪽 모서리부터 살짝 들렸다가 위로 걷힘. 걷히는 가장자리에 그림자가 생김
+  layerEl.style.transformOrigin = '50% 0';
+  const peel = layerEl.animate([
+    { transform: 'perspective(1800px) translateY(0) rotateX(0deg)', boxShadow: '0 0 0 rgba(0,0,0,0)', offset: 0 },
+    { transform: 'perspective(1800px) translateY(-10%) rotateX(-3deg)', boxShadow: '0 30px 70px rgba(0,0,0,0.26)', offset: 0.2 },
+    { transform: 'perspective(1800px) translateY(-110%) rotateX(-14deg)', boxShadow: '0 50px 90px rgba(0,0,0,0.3)', offset: 1 },
+  ], { duration: PEEL_MS, easing: 'cubic-bezier(0.55, 0.05, 0.3, 1)', fill: 'forwards' });
+
+  peel.onfinish = () => {
+    // 종이가 다 걷힌 뒤: 다음 질문으로 바꾸고, 레이어는 투명하게 둔 채 라임색 새 종이 위에 질문이 나타남
+    surveyEl.classList.add('is-swapping');
+    layerEl.style.transition = 'none';
+    layerEl.style.background = 'transparent';
+    renderQuestion(next);
+    peel.cancel();
+    layerEl.style.boxShadow = 'none';
+    void layerEl.offsetWidth;
+    surveyEl.classList.remove('is-swapping');
     setTimeout(() => {
-      const t0 = performance.now();
-      let revealed = false;
-      const step = (now) => {
-        const t = Math.min((now - t0) / WIPE_OPEN_MS, 1);
-        const e = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;   // easeInOutCubic
-        const hole = e * radius;
-        const mask = `radial-gradient(circle at ${x}px ${y}px, transparent ${hole}px, #000 ${hole + 1}px)`;
-        wipe.style.webkitMaskImage = mask;
-        wipe.style.maskImage = mask;
-        if (!revealed && t > 0.4) { revealed = true; surveyEl.classList.remove('is-swapping'); }
-        if (t < 1) requestAnimationFrame(step);
-        else { wipe.remove(); wiping = false; updateNext(); }
-      };
-      requestAnimationFrame(step);
-    }, WIPE_HOLD_MS);
+      // 라임색 새 종이가 흰색으로 밝아짐
+      layerEl.style.transition = `background-color ${PEEL_WHITE_MS}ms ease`;
+      layerEl.style.background = '#ffffff';
+      setTimeout(() => {
+        under.remove();
+        ['transformOrigin', 'transition', 'background', 'boxShadow'].forEach((k) => { layerEl.style[k] = ''; });
+        wiping = false;
+        updateNext();
+      }, PEEL_WHITE_MS + 30);
+    }, PEEL_HOLD_MS + 450);
   };
 }
+
+// ---------- 설문7 done: 배경 단어 박스들이 선명한 채로 있다가 먼지로 흩어져 양옆으로 바람에 쓸려 나감 ----------
+// window.dustDeco(기준 요소) — 기준 요소(done 버튼)에서 퍼져 나가는 파동을 따라 가까운 박스부터 한 개씩 알갱이로 흩어져,
+// 화면 가운데에서 바깥(왼쪽 박스는 왼쪽, 오른쪽 박스는 오른쪽)으로 바람에 쓸려 나가며 흐려짐
+const DUST = {
+  grain: 2,                   // 먼지 알갱이 크기(px) — 작아서 흩어지기 전에는 원래 박스처럼 보임
+  waveSpeed: 1100,            // 파동이 퍼지는 속도(px/초)
+  sweepMs: 520,               // 박스 안에서 바람이 가운데 쪽에서 바깥쪽으로 훑고 지나가는 시간
+  wind: 620,                  // 바람 가속(px/초²), 화면 바깥쪽으로
+  lift: 70,                   // 위로 떠오르는 정도(px/초)
+};
+function dustDeco(origin) {
+  const words = [...decoEl.querySelectorAll('.deco-word')];
+  if (!words.length || decoEl.hidden) return Promise.resolve();
+  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) { decoEl.hidden = true; return Promise.resolve(); }
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const cv = document.createElement('canvas');
+  cv.style.cssText = 'position:fixed;left:0;top:0;width:100vw;height:100vh;z-index:25;pointer-events:none';
+  cv.width = innerWidth * dpr; cv.height = innerHeight * dpr;
+  document.body.appendChild(cv);
+  const ctx = cv.getContext('2d');
+  const o = origin.getBoundingClientRect();
+  const ox = o.left + o.width / 2; const oy = o.top + o.height / 2;
+
+  const boxes = words.map((el) => {
+    const r = el.getBoundingClientRect();
+    const cs = getComputedStyle(el);
+    // 박스를 한 장의 그림으로 그려 둠 (색 + 글자)
+    const off = document.createElement('canvas');
+    off.width = Math.ceil(r.width * dpr); off.height = Math.ceil(r.height * dpr);
+    const c = off.getContext('2d');
+    c.scale(dpr, dpr);
+    c.fillStyle = cs.backgroundColor; c.fillRect(0, 0, r.width, r.height);
+    c.fillStyle = cs.color; c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+    if ('letterSpacing' in c) c.letterSpacing = cs.letterSpacing;
+    c.fillText(el.textContent, r.width / 2, r.height / 2 + 1);
+    const cx = r.left + r.width / 2; const cy = r.top + r.height / 2;
+    const dir = cx < innerWidth / 2 ? -1 : 1;                           // 왼쪽 박스는 왼쪽으로, 오른쪽 박스는 오른쪽으로 빠짐
+    return { el, r, off, dir, start: Math.hypot(cx - ox, cy - oy) / DUST.waveSpeed * 1000 + Math.random() * 140, particles: null };
+  });
+
+  // 알갱이 만들기: 박스를 grain 크기 칸으로 나눠 칸마다 색을 뽑음
+  const makeParticles = (b) => {
+    const g = DUST.grain;
+    const cols = Math.ceil(b.r.width / g); const rows = Math.ceil(b.r.height / g);
+    const sm = document.createElement('canvas'); sm.width = cols; sm.height = rows;
+    const sc = sm.getContext('2d'); sc.drawImage(b.off, 0, 0, cols, rows);
+    const data = sc.getImageData(0, 0, cols, rows).data;
+    const list = [];
+    for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) {
+      const i = (y * cols + x) * 4;
+      if (data[i + 3] < 40) continue;
+      list.push({
+        x: b.r.left + x * g, y: b.r.top + y * g, rgb: `${data[i]},${data[i + 1]},${data[i + 2]}`,
+        at: (b.dir > 0 ? x / cols : 1 - x / cols) * DUST.sweepMs + Math.random() * 260,   // 바람이 가운데 쪽에서 바깥쪽으로 훑고 지나감
+        vx: (60 + Math.random() * 160) * b.dir, vy: -(DUST.lift * (0.2 + Math.random()) * 0.6) + (Math.random() - 0.5) * 50,
+        ph: Math.random() * 6.28, life: 900 + Math.random() * 900,
+      });
+    }
+    return list;
+  };
+
+  return new Promise((resolve) => {
+    const t0 = performance.now();
+    let last = t0;
+    const frame = (now) => {
+      const t = now - t0;
+      const dt = Math.min(0.05, (now - last) / 1000); last = now;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, innerWidth, innerHeight);
+      let active = 0;
+      boxes.forEach((b) => {
+        const lt = t - b.start;
+        if (lt < 0) { active++; return; }
+        if (!b.particles) { b.particles = makeParticles(b); b.el.style.visibility = 'hidden'; }   // 먼지로 흩어짐
+        let alive = 0;
+        b.particles.forEach((p) => {
+          const age = lt - p.at;
+          if (age < 0) { alive++; ctx.fillStyle = `rgb(${p.rgb})`; ctx.fillRect(p.x, p.y, DUST.grain, DUST.grain); return; }   // 아직 바람이 안 닿은 알갱이는 제자리
+          if (age > p.life) return;
+          alive++;
+          p.vx += DUST.wind * b.dir * dt;
+          p.x += p.vx * dt;
+          p.y += (p.vy + Math.sin(age / 160 + p.ph) * 38) * dt;
+          const k = age / p.life;
+          const size = DUST.grain * (1 - k * 0.65);
+          ctx.fillStyle = `rgba(${p.rgb},${(1 - k * k).toFixed(3)})`;
+          ctx.fillRect(p.x, p.y, size, size);
+        });
+        if (alive) active++;
+      });
+      if (active) requestAnimationFrame(frame);
+      else { cv.remove(); decoEl.hidden = true; resolve(); }
+    };
+    requestAnimationFrame(frame);
+  });
+}
+window.dustDeco = dustDeco;
 
 // ---------- 다음 ----------
 function goNext() {
@@ -561,10 +663,9 @@ function goNext() {
     window.surveyAnswers = QUESTIONS.map((q, n) => ({ question: q.title.replace(/\n/g, ' '), answer: answers[n] }));
     console.log('survey answers', window.surveyAnswers);
     // 설문이 끝나면: 커서를 따라다니던 꼬리표들이 줄이 끊겨 떨어져 나가고, 마지막 한 개가 새 이름으로 바뀐 뒤 결과지가 나옴
-    const define = answers[QUESTIONS.length - 1] || {};
-    const colors = answers[QUESTIONS.length - 2] || {};
+    if (window.dustDeco) window.dustDeco(nextBtn);                      // 배경에 떠 있던 단어 박스들은 먼지로 흩어져 양옆으로 바람에 쓸려 사라짐
     const showResult = () => { if (window.ResultSheet) window.ResultSheet.show(window.surveyAnswers); };
-    if (window.releaseTrail) window.releaseTrail({ word: define.word, color: colors.now }).then(() => setTimeout(showResult, 250));
+    if (window.releaseTrail) window.releaseTrail().then(() => setTimeout(showResult, 250));
     else setTimeout(showResult, 900);
   }
 }

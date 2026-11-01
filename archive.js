@@ -35,8 +35,11 @@
   const PARALLAX = { x: 70, y: 46, rotY: 3.2, rotX: 2.4 };   // 마우스를 따라 시점이 움직이는 정도
   // 책에 들어갈 결과지 목록 (지금은 예시 1·2 를 번갈아). 나중에 참여자들의 결과지가 여기에 쌓임
   const ARCHIVE_SHEETS = [FRONT, BACK];
+  const FAN_COUNT = 5;                    // 촤라락 넘어가는 빈 장 수
+  const FAN_FLIP_MS = 740;                // 한 장이 넘어가는 시간
+  const FAN_STAGGER_MS = 120;             // 장과 장 사이 간격
   const LEAVES = 4;                       // 책을 넘길 수 있는 장 수 (한 장 = 앞뒤 2쪽)
-  const PAGE = { w: 394, h: 552 };        // 책 한 쪽 크기 (시안 px)
+  const PAGE = { w: 394, h: 528 };        // 책 한 쪽 크기 (시안 px)
   const SPINE = { x: 718, y: 228 };       // 책등 위치
 
   const el = (tag, cls, parent) => { const n = document.createElement(tag); if (cls) n.className = cls; if (parent) parent.append(n); return n; };
@@ -85,7 +88,7 @@
     const s2 = el('section', 'ar-screen ar-screen--2', scroll);
     const c2 = el('div', 'ar-canvas', s2);
     const stage = el('div', 'bk-stage', c2);
-    const book = el('div', 'bk-book', stage);
+    const book = el('div', 'bk-book is-closed', stage);
     book.style.left = `${SPINE.x}px`;
     book.style.top = `${SPINE.y}px`;
     el('div', 'bk-cover', book);
@@ -101,23 +104,46 @@
       img.src = sheetAt(n); img.alt = ''; img.draggable = false;
       return f;
     };
-    // 왼쪽 맨 아래 쪽(첫 쪽)과 오른쪽 맨 아래 빈 쪽
-    const leftBase = el('div', 'bk-leaf bk-leaf--left', book);
-    page(leftBase, 'bk-face--l', 0);
+    // 바닥에 깔린 쪽: 왼쪽(표지 안쪽에 붙은 빈 쪽)·오른쪽(빈 쪽)
+    el('div', 'bk-leaf bk-leaf--left bk-face--l', book);
     el('div', 'bk-leaf bk-leaf--rightbase bk-face--r', book);
+    // 넘겨 볼 수 있는 장들 (앞면 = 오른쪽에 보이는 쪽, 뒷면 = 넘긴 뒤 왼쪽에 보이는 쪽). 첫 장의 앞면이 펼쳐졌을 때 오른쪽 쪽이 됨
     const leaves = [];
     for (let j = 0; j < LEAVES; j++) {
       const leaf = el('div', 'bk-leaf', book);
-      page(leaf, 'bk-face--r', 2 * j + 1);                      // 앞면 = 오른쪽에 보이는 쪽
-      const back = page(leaf, 'bk-face--l bk-face--back', 2 * j + 2);   // 뒷면 = 넘긴 뒤 왼쪽에 보이는 쪽
+      page(leaf, 'bk-face--r', 2 * j + 1);
+      page(leaf, 'bk-face--l bk-face--back', 2 * j + 2);
       leaves.push(leaf);
     }
+    // 표지: 앞면 = 닫힌 책, 뒷면 = 펼쳤을 때 왼쪽에 놓이는 빈 쪽
+    const coverBoard = el('div', 'bk-board', book);
+    const cf = el('div', 'bk-board__face bk-board__front', coverBoard);
+    const cimg = el('img', '', cf); cimg.src = 'assets/book.png'; cimg.alt = ''; cimg.draggable = false;
+    el('div', 'bk-board__face bk-board__back', coverBoard);
+    // 촤라락 넘어가는 빈 장들: 마지막 장의 뒷면이 최신 결과지(왼쪽 쪽)가 됨
+    const fans = [];
+    for (let i = FAN_COUNT - 1; i >= 0; i--) {
+      const f = el('div', 'leaf bk-fan', book);
+      f.dataset.front = 'assets/face-right-blank.png';
+      f.dataset.back = i === FAN_COUNT - 1 ? sheetAt(0) : 'assets/face-left-blank.png';
+      f.dataset.fan = i;
+      f.style.cssText = `--lw:${PAGE.w}px;--lh:${PAGE.h}px;--sw:${PAGE.w / LEAF_STRIPS}px;top:0;left:0;visibility:hidden;`;
+      buildLeaf(f); updateCurl(f, 0);
+      fans[i] = f;
+    }
+    layer.fans = fans;
+    layer.book = book;
+    layer.board = coverBoard;
+    layer.bookState = 'closed';
+    stage.addEventListener('click', () => { if (layer.bookState === 'closed') openBook(); });
     const cap = el('p', 'bk-caption', c2);
     cap.textContent = '책을 눌러 넘겨 보세요  ·  손가락을 좌우로 그어도 넘어가요';
+    layer.cap = cap;
     layer.leaves = leaves;
 
     // 눌러서 넘기기: 오른쪽 쪽 = 다음, 왼쪽 쪽 = 이전
     stage.addEventListener('click', (e) => {
+      if (layer.bookState !== 'open') return;
       const r = stage.getBoundingClientRect();
       go(e.clientX > r.left + r.width / 2 ? 1 : -1);
     });
@@ -143,6 +169,7 @@
       const dark = state.pt > 0.9;
       document.body.classList.toggle('is-dark', dark);
       watch(scroll.scrollTop > (RUNWAY_VH + 0.5) * vh);
+      if (scroll.scrollTop > (RUNWAY_VH + 0.55) * vh && layer.bookState === 'closed') openBook();   // 책 화면이 보이기 시작하면 덮여 있던 책이 펼쳐짐
     };
     scroll.addEventListener('scroll', calc, { passive: true });
     const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -193,12 +220,45 @@
       const flipped = j < spread;
       leaf.classList.toggle('is-flipped', flipped);
       // 겹친 종이가 서로 파묻히지 않게 아주 조금씩 높이를 다르게 함
-      leaf.style.setProperty('--z', flipped ? j : LEAVES - j);
+      leaf.style.setProperty('--z', flipped ? 5 + j * 0.8 : (LEAVES - j) * 0.14);   // 오른쪽에 있을 땐 촤라락 장들보다 아래, 왼쪽으로 넘어가면 그 위
     });
     layer.classList.toggle('is-first', spread === 0);
     layer.classList.toggle('is-last', spread === LEAVES);
   }
-  const go = (dir) => setSpread(spread + dir);
+  // 닫혀 있던 책이 3D 로 펼쳐짐: 위에서 내려다보는 시점 → 표지가 열림 → 빈 장들이 촤라락 넘어가며 최신 결과지가 왼쪽에 펼쳐짐
+  const easeFlip = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+  function openBook() {
+    if (layer.bookState !== 'closed') return;
+    layer.bookState = 'opening';
+    const book = layer.book;
+    book.classList.add('is-opening');
+    book.classList.remove('is-closed');                                    // 표지가 열리며 책이 가운데에서 제자리로 이동
+    const COVER_DELAY = 350; const COVER_MS = 1500;
+    const fans = layer.fans;
+    const FZ = (i, p) => {                                                  // 오른쪽에서는 먼저 넘어갈 장이 위, 왼쪽에서는 나중에 넘어온 장이 위
+      const right = 1 + (FAN_COUNT - i) * 0.25 - 0.5;
+      const left = 1 + (i + 1) * 0.25 + 0.5;
+      const t = Math.min(1, Math.max(0, (p - 0.35) / 0.3));
+      return right + (left - right) * t * t * (3 - 2 * t) + 2.2 * Math.sin(Math.PI * p);
+    };
+    fans.forEach((f) => { f.style.visibility = 'visible'; f.style.transform = `translateZ(${FZ(+f.dataset.fan, 0)}px)`; });
+    const t0 = performance.now() + COVER_DELAY + 550;                       // 표지가 열리는 도중부터 넘기기 시작
+    const total = (FAN_COUNT - 1) * FAN_STAGGER_MS + FAN_FLIP_MS;
+    const step = (now) => {
+      const el_ = now - t0;
+      fans.forEach((f) => {
+        const i = +f.dataset.fan;
+        const p = easeFlip(Math.min(1, Math.max(0, (el_ - i * FAN_STAGGER_MS) / FAN_FLIP_MS)));
+        if (Math.abs(p - (f._p ?? -1)) > 0.0003) { f._p = p; f.dataset.p = p.toFixed(4); updateCurl(f, p); f.style.transform = `translateZ(${FZ(i, p).toFixed(3)}px)`; }
+      });
+      layer.fanShadow = Math.max(...fans.map((f) => { const p = f._p || 0; return p > 0.001 && p < 0.985 ? Math.sin(Math.PI * p) : 0; }));
+      if (el_ < total + 60) requestAnimationFrame(step);
+      else { layer.bookState = 'open'; layer.cap.classList.add('is-on'); book.classList.remove('is-opening'); }
+    };
+    requestAnimationFrame(step);
+  }
+
+  const go = (dir) => { if (layer && layer.bookState === 'open') setSpread(spread + dir); };
 
   function watch(on) {
     if (on && !stopWatch && window.ResultSheet && window.ResultSheet.watchSwipe) {
@@ -212,14 +272,14 @@
     document.body.querySelectorAll('.bar__side').forEach((n) => n.remove());
     if (!layer) build();
     document.body.classList.add('is-archive');
-    const nl = document.getElementById('contact-btn'); const nr = document.getElementById('about-btn');
-    if (nl) nl.textContent = 'archive';
-    if (nr) nr.textContent = 'publication';
     layer.querySelector('.ar-scroll').scrollTop = 0;
     requestAnimationFrame(() => { layer.classList.add('is-on'); layer.start(); });
     setTimeout(() => { const r = document.getElementById('result-layer'); if (r) r.classList.remove('is-on'); }, 800);   // 결과지 화면은 아카이빙이 다 덮은 뒤 치움
   }
 
   window.Archive = { open, go, sheets: ARCHIVE_SHEETS };
+  // 상단 archive 버튼: 어느 화면에서든 눌러서 바로 아카이빙1 로 이동
+  const archiveBtn = document.getElementById('archive-btn');
+  if (archiveBtn) archiveBtn.addEventListener('click', (e) => { e.preventDefault(); open(); });
   if (/[?&]archive=1/.test(location.search)) window.addEventListener('load', open);   // 확인용: ?archive=1
 })();
