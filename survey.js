@@ -479,11 +479,21 @@ function onAnswerInput() {
   answers[qi] = answerEl.value;
   updateNext();
 }
+// 닉네임(설문1)에 영어로 입력하면 소문자도 자동으로 대문자로 바뀜 (한글은 그대로)
+function upcaseNick() {
+  if (QUESTIONS[qi].type !== 'nick') return;
+  const upper = answerEl.value.toUpperCase();
+  if (upper === answerEl.value) return;
+  const pos = answerEl.selectionStart;
+  answerEl.value = upper;
+  answerEl.setSelectionRange(pos, pos);
+}
 answerEl.addEventListener('input', (e) => {
-  if (!e.isComposing) enforceLimit(); // 한글 조합 중에는 자르지 않고, 조합이 끝나면 자름
+  if (!e.isComposing) { upcaseNick(); enforceLimit(); } // 한글 조합 중에는 건드리지 않고, 조합이 끝나면 처리
   onAnswerInput();
 });
 answerEl.addEventListener('compositionend', () => {
+  upcaseNick();
   enforceLimit();
   onAnswerInput();
 });

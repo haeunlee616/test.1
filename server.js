@@ -1,8 +1,68 @@
 const express = require('express');
 const path = require('path');
+const Interpretation = require('./interpretation-prompt');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// 결과지 '해석' 칸을 쓰는 AI (OpenAI). 키는 서버 환경변수에만 둠 — 코드·깃·브라우저에 절대 넣지 않음
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+const OPENAI_BASE_URL = process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1';
+
+app.set('trust proxy', 1);              // Render 앞단 프록시 뒤에서도 방문자 IP 를 제대로 읽음
+app.use(express.json({ limit: '10kb' }));
+
+// 같은 방문자가 AI 를 마구 부르지 못하게: IP 당 1분에 10번
+const RATE_WINDOW_MS = 60 * 1000;
+const RATE_MAX = 10;
+const hits = new Map();
+function overLimit(ip) {
+  const now = Date.now();
+  const recent = (hits.get(ip) || []).filter((t) => now - t < RATE_WINDOW_MS);
+  recent.push(now);
+  hits.set(ip, recent);
+  if (hits.size > 5000) for (const [key, list] of hits) if (!list.some((t) => now - t < RATE_WINDOW_MS)) hits.delete(key);
+  return recent.length > RATE_MAX;
+}
+
+const isStringList = (v, maxItems, maxLen) => Array.isArray(v) && v.length <= maxItems && v.every((s) => typeof s === 'string' && s.length > 0 && s.length <= maxLen);
+
+app.post('/api/interpret', async (req, res) => {
+  if (!OPENAI_API_KEY) return res.status(503).json({ error: 'AI 키가 서버에 설정되지 않았어요.' });
+  if (overLimit(req.ip)) return res.status(429).json({ error: '잠시 뒤에 다시 시도해 주세요.' });
+
+  const { sentence, situation, criteria } = req.body || {};
+  if (typeof sentence !== 'string' || !sentence.trim() || sentence.length > 200
+    || !isStringList(situation, 24, 20) || !isStringList(criteria, 13, 20)) {
+    return res.status(400).json({ error: '응답 형식이 올바르지 않아요.' });
+  }
+
+  const { system, messages } = Interpretation.prompt({ sentence: sentence.trim(), situation, criteria });
+  try {
+    const ai = await fetch(`${OPENAI_BASE_URL}/chat/completions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${OPENAI_API_KEY}` },
+      body: JSON.stringify({
+        model: OPENAI_MODEL,
+        messages: [{ role: 'system', content: system }, ...messages],
+        max_completion_tokens: 400,
+      }),
+      signal: AbortSignal.timeout(20000),
+    });
+    if (!ai.ok) {
+      console.error('OpenAI 오류', ai.status, (await ai.text()).slice(0, 300));
+      return res.status(502).json({ error: 'AI 해석을 받지 못했어요.' });
+    }
+    const data = await ai.json();
+    const text = String(data.choices?.[0]?.message?.content || '').replace(/^["“‘'\s]+|["”’'\s]+$/g, '').trim();
+    if (!text) return res.status(502).json({ error: 'AI 해석이 비어 있어요.' });
+    return res.json({ text });
+  } catch (err) {
+    console.error('OpenAI 호출 실패', err.message);
+    return res.status(502).json({ error: 'AI 해석을 받지 못했어요.' });
+  }
+});
 
 // index.html, style.css, script.js를 그대로 정적 파일로 내려줌
 app.use(express.static(__dirname));
