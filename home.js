@@ -388,6 +388,13 @@ const TRAIL_STRETCH_MAX = 0.5; // 빠르게 움직일 때 꼬리가 추가로 �
 const SWAP_EVERY_PX = 55;      // 커서가 이만큼 움직일 때마다 박스 하나가 다른 단어로 바뀜
 const SWAP_FADE_MS = 280;      // 바뀐 박스가 나타나는 시간
 
+// 커서를 움직여도 박스는 바로 따라가지 않고, 살짝 늦게 출발해서 뒤늦게 쫓아옴
+const TRAIL_DELAY_FIRST_MS = 150;  // 맨 앞 박스가 커서보다 늦는 시간
+const TRAIL_DELAY_LAST_MS = 400;   // 맨 뒤 박스가 늦는 시간 (뒤로 갈수록 점점 더 늦음)
+const TRAIL_NEAR_PX = 40;          // 커서와 이 거리 안이면 느긋하게(디자인 px)
+const TRAIL_FAR_PX = 220;          // 이 거리를 넘으면 빠르게 따라붙음
+const TRAIL_MAX_DIST = 600;        // 지연 때문에 커서에서 이보다 멀어지지는 않게
+
 // 단어 풀: 맨 처음 화면에서 배경에 있던 단어 박스들(글자 + 색)
 const wordPool = Array.from(document.querySelectorAll('.words .track:first-child .word')).map((w) => ({
   text: w.textContent.trim(),
@@ -429,6 +436,7 @@ let appear = 0;
 let travelled = 0;
 let speed = 0;            // 최근 커서 속도(px/프레임, 부드럽게 평균)
 let lastFrame = performance.now();
+let lastMoveT = performance.now();   // 커서가 마지막으로 움직인 시각
 let unit = 1;
 const measureUnit = () => { unit = document.querySelector('.bar').getBoundingClientRect().height / 60; };
 measureUnit();
@@ -439,14 +447,16 @@ function seedPath(p) {
   const dx = 0.95;
   const dy = 0.3;
   path = [];
-  for (let d = 12; d < 1600 * unit; d += 12) path.push({ x: p.x + dx * d, y: p.y + dy * d });
+  const t0 = performance.now() - 5000;
+  for (let d = 12; d < 1600 * unit; d += 12) path.push({ x: p.x + dx * d, y: p.y + dy * d, t: t0 });
 }
 
-// 커서(맨 앞)에서 경로를 따라 distance 만큼 떨어진 점
-function pointAlongPath(distance) {
-  let prev = pointer;
+// head 지점(경로의 startIdx 번째부터 이어짐)에서 경로를 따라 distance 만큼 떨어진 점
+function pointAlongPath(distance, head = pointer, startIdx = 0) {
+  let prev = head;
   let remaining = distance;
-  for (const pt of path) {
+  for (let j = startIdx; j < path.length; j++) {
+    const pt = path[j];
     const seg = Math.hypot(pt.x - prev.x, pt.y - prev.y);
     if (seg >= remaining) {
       const t = seg === 0 ? 0 : remaining / seg;
@@ -458,19 +468,35 @@ function pointAlongPath(distance) {
   return prev;
 }
 
+// time 시각에 커서가 있던 자리와, 그 뒤로 이어지는 경로의 위치(인덱스)
+function headAt(time) {
+  if (time >= lastMoveT) return { pt: pointer, idx: 0 };
+  let prev = { x: pointer.x, y: pointer.y, t: lastMoveT };
+  for (let j = 0; j < path.length; j++) {
+    const q = path[j];
+    if (q.t <= time) {
+      const f = Math.min(1, Math.max(0, (time - q.t) / (prev.t - q.t || 1)));
+      return { pt: { x: q.x + (prev.x - q.x) * f, y: q.y + (prev.y - q.y) * f }, idx: j };
+    }
+    prev = q;
+  }
+  return { pt: prev, idx: path.length };
+}
+
 window.addEventListener('mousemove', (e) => {
   const p = { x: e.clientX, y: e.clientY };
   const first = !pointer;
   const from = pointer;
   pointer = p;
   if (!trailOn) return;
+  lastMoveT = performance.now();
   if (first || path.length === 0) seedPath(p);
   if (from) {
     const d = Math.hypot(p.x - from.x, p.y - from.y);
     travelled += d;
     // 지나간 경로를 일정 간격으로 기록 (너무 촘촘하지 않게)
     const newest = path[0];
-    if (!newest || Math.hypot(p.x - newest.x, p.y - newest.y) >= 3 * unit) path.unshift({ x: p.x, y: p.y });
+    if (!newest || Math.hypot(p.x - newest.x, p.y - newest.y) >= 3 * unit) path.unshift({ x: p.x, y: p.y, t: lastMoveT });
     if (path.length > 900) path.length = 900;
   }
   // 움직인 만큼 박스가 하나씩 다른 단어로 교체됨
@@ -505,10 +531,22 @@ function trailFrame(now) {
     const stretch = 1 + Math.min(TRAIL_STRETCH_MAX, speed / 60);
 
     trailBoxes.forEach((box, i) => {
-      const pt = pointAlongPath(trailOffsets[i] * unit * stretch);
-      const tx = pt.x + TRAIL_HEAD_DX * unit;
-      const ty = pt.y + TRAIL_HEAD_DY * unit;
-      const k = 1 - Math.pow(1 - box.ease, dt / 16.67);
+      // 이 박스는 커서가 delay 만큼 전에 있던 자리에서부터 경로를 따라 늘어섬 → 커서가 움직여도 뒤늦게 출발
+      const delay = TRAIL_DELAY_FIRST_MS + (TRAIL_DELAY_LAST_MS - TRAIL_DELAY_FIRST_MS) * (i / (TRAIL_COUNT - 1));
+      const head = headAt(now - delay);
+      const pt = pointAlongPath(trailOffsets[i] * unit * stretch, head.pt, head.idx);
+      let tx = pt.x + TRAIL_HEAD_DX * unit;
+      let ty = pt.y + TRAIL_HEAD_DY * unit;
+      // 커서에서 너무 멀리 처지지 않게
+      const cx = pointer.x + TRAIL_HEAD_DX * unit;
+      const cy = pointer.y + TRAIL_HEAD_DY * unit;
+      const off = Math.hypot(tx - cx, ty - cy);
+      const maxOff = TRAIL_MAX_DIST * unit;
+      if (off > maxOff) { tx = cx + (tx - cx) * (maxOff / off); ty = cy + (ty - cy) * (maxOff / off); }
+      // 가까우면 느긋하게, 멀리 처졌으면 빠르게 따라붙음
+      const gap = Math.hypot(tx - box.x, ty - box.y) / unit;
+      const boost = 0.55 + 0.9 * Math.min(1, Math.max(0, (gap - TRAIL_NEAR_PX) / (TRAIL_FAR_PX - TRAIL_NEAR_PX)));
+      const k = 1 - Math.pow(1 - Math.min(0.6, box.ease * boost), dt / 16.67);
       box.x += (tx - box.x) * k;
       box.y += (ty - box.y) * k;
       box.fade = Math.min(1, box.fade + dt / SWAP_FADE_MS);
