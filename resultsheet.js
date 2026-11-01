@@ -75,17 +75,43 @@
     return lines.map((text, i) => ({ text, x: FRAME.w / 2, y: top + CAP_HEIGHT * size + i * LINE_PITCH * size, size }));
   }
 
-  // 큰 글자 SVG 조각: 글자(채움 + 둥근 점 둘레)를 mask/채움 양쪽에서 같이 쓰도록 <g> 를 만들어 줌
-  function wordGroup(layout, attrs) {
+  // 큰 글자 SVG 조각: 글자(채움 + 둥근 점 둘레)를 mask/채움 양쪽에서 같이 쓰도록 <g> 를 만들어 줌. line 으로 둘레 모양을 바꿀 수 있음
+  function wordGroup(layout, attrs, line) {
     const g = svgEl('g', attrs);
-    wordGeometry(layout).forEach((line) => {
+    const stroke = line || { width: BEAD.width, dash: `0 ${BEAD.gap}`, cap: 'round' };
+    wordGeometry(layout).forEach((ln) => {
       const t = svgEl('text', {
-        x: line.x, y: line.y,
-        'text-anchor': 'middle', 'font-family': WORD_FONT, 'font-weight': 700, 'font-size': line.size,
-        'stroke-width': BEAD.width, 'stroke-dasharray': `0 ${BEAD.gap}`, 'stroke-linecap': 'round', 'stroke-linejoin': 'round',
+        x: ln.x, y: ln.y,
+        'text-anchor': 'middle', 'font-family': WORD_FONT, 'font-weight': 700, 'font-size': ln.size,
+        'stroke-width': stroke.width, 'stroke-dasharray': stroke.dash, 'stroke-linecap': stroke.cap, 'stroke-linejoin': 'round',
       });
-      t.textContent = line.text;
+      t.textContent = ln.text;
       g.append(t);
+    });
+    return g;
+  }
+
+  // 글자 한 자 한 자를 따로 떨어뜨리기 위한 조각 (글자 줄마다 위치를 재서 한 글자씩 <text> 로 만듦)
+  function charPieces(layout, color) {
+    const ctx = document.createElement('canvas').getContext('2d');
+    const g = svgEl('g', { class: 'rs-pieces' });
+    wordGeometry(layout).forEach((ln) => {
+      ctx.font = `700 ${ln.size}px ${WORD_FONT}`;
+      const total = ctx.measureText(ln.text).width;
+      const startX = ln.x - total / 2;
+      Array.from(ln.text).forEach((ch, i) => {
+        if (/\s/.test(ch)) return;
+        const right = ctx.measureText(ln.text.slice(0, i + 1)).width;
+        const t = svgEl('text', {
+          x: startX + right - ctx.measureText(ch).width, y: ln.y,
+          'font-family': WORD_FONT, 'font-weight': 700, 'font-size': ln.size,
+          fill: color, stroke: color, 'stroke-width': BEAD.width + 2, 'stroke-linejoin': 'round',
+        });
+        t.style.transformBox = 'fill-box';
+        t.style.transformOrigin = 'center';
+        t.textContent = ch;
+        g.append(t);
+      });
     });
     return g;
   }
@@ -191,6 +217,7 @@
         s.node.style.left = `${p.x}px`;
         s.node.style.top = `${p.y}px`;
         s.node.style.transform = `rotate(${p.rot}deg)`;
+        s.node.dataset.rot = p.rot;
         s.node.style.visibility = 'visible';
       });
     });
@@ -224,14 +251,20 @@
     if (!layout) return;
     const svg = svgEl('svg', { class: 'rs-word', viewBox: `0 0 ${FRAME.w} ${FRAME.h}`, width: FRAME.w, height: FRAME.h });
     if (side === 'front') {
-      // 앞면: 사진 위에 '지금' 색 판을 덮되 글자 모양(둘레 점 포함)만 뚫어 사진이 글자 안에서만 보이게 함
+      // 앞면: 사진 위에 '지금' 색 종이를 덮되 글자 모양(둘레 점 포함)만 뚫음. 처음엔 뚫린 자리를 글자 조각이 막고 있다가 점선으로 오려낸 뒤 떨어짐
+      const color = ctx.color || '#e8ff8e';
       const mask = svgEl('mask', { id: 'rs-word-hole', maskUnits: 'userSpaceOnUse', x: 0, y: 0, width: FRAME.w, height: FRAME.h });
       mask.append(svgEl('rect', { x: 0, y: 0, width: FRAME.w, height: FRAME.h, fill: '#fff' }));
       mask.append(wordGroup(layout, { fill: '#000', stroke: '#000' }));
+      const clip = svgEl('clipPath', { id: 'rs-cut-clip' });
+      clip.append(svgEl('rect', { class: 'rs-cut-rect', x: 0, y: 0, width: 0, height: FRAME.h }));
       const defs = svgEl('defs');
-      defs.append(mask);
+      defs.append(mask, clip);
       svg.append(defs);
-      svg.append(svgEl('rect', { x: 0, y: 0, width: FRAME.w, height: FRAME.h, fill: ctx.color || '#e8ff8e', mask: 'url(#rs-word-hole)' }));
+      svg.append(svgEl('rect', { x: 0, y: 0, width: FRAME.w, height: FRAME.h, fill: color, mask: 'url(#rs-word-hole)' }));
+      svg.append(charPieces(layout, color));
+      const cut = wordGroup(layout, { fill: 'none', stroke: '#111', 'clip-path': 'url(#rs-cut-clip)', class: 'rs-cut' }, { width: 2.6, dash: '2.4 4.6', cap: 'round' });
+      svg.append(cut);
       svg.classList.add('rs-step', 'rs-wipe');
     } else {
       const c = ctx.color || '#e8ff8e';
@@ -268,12 +301,19 @@
       card.append(face);
       // 머리 (회색 띠 + failure noun (NO SUCCESS) + 닉네임)
       const head = el('div', 'rs-head', face);
-      [['failure', 'failure'], ['noun', 'noun'], ['no', 'no-success']].forEach(([cls, file]) => { const img = el('img', `rs-head__${cls}`, head); img.src = `assets/result/${file}.png`; img.alt = file; });
+      // failure · (NO SUCCESS) 는 글자와 취소선을 따로 올려 두어 앞면에서는 취소선이 쓱 그어지게 함
+      const part = (cls, file) => { const img = el('img', cls, head); img.src = `assets/result/${file}.png`; img.alt = ''; return img; };
+      part('rs-head__failure', 'failure-base');
+      const strikeA = part('rs-head__failure rs-strike', 'failure-strike');
+      part('rs-head__noun', 'noun');
+      part('rs-head__no', 'no-success-base');
+      const strikeB = part('rs-head__no rs-strike', 'no-success-strike');
       const mark = await window.Nickname.render(data.nickname);
       mark.classList.add('rs-nick');
       mark.style.width = `${mark.getAttribute('width') * 1.5}px`;
       mark.style.height = 'auto';
       head.append(mark);
+      if (side === 'front') { face.strikes = [strikeA, strikeB]; face.nick = mark; [strikeA, strikeB, mark].forEach((n) => n.classList.add('is-hidden')); }
       // 그림들
       face.stickers = await stickerNodes(resp, colors);
       face.stickers.forEach((s) => { face.art.append(s.node); if (side === 'front') s.node.classList.add('rs-step', 'rs-pop'); });
@@ -294,7 +334,11 @@
         { label: '의미', key: 'meaning' }, { label: data.now.newStart, key: 'definition' }, { label: '예문', key: 'example' },
       ], fields, side);
       now.classList.add('rs-now');
-      face.append(then, now, el('div', 'rs-divider', face));
+      const divider = el('div', 'rs-divider', face);
+      face.append(then, now, divider);
+      face.divider = divider;
+      if (side === 'front') divider.classList.add('is-hidden');
+      else face.querySelectorAll('.rs-row').forEach((row) => row.classList.add('is-drawn'));
     }
     root.faces = faces;
     root.ctx = ctx;
@@ -343,6 +387,132 @@
     });
   }
 
+  // ----- 모션 도우미 -----
+  const speed = () => window.__rsSpeed || 1;
+  // 값을 0→1 로 천천히 바꾸며 fn(t) 를 부름 (SVG 속성처럼 CSS 로 움직이기 어려운 것용)
+  function tween(ms, fn) {
+    return new Promise((resolve) => {
+      const t0 = performance.now();
+      const step = (now) => {
+        const t = Math.min((now - t0) / (ms * speed()), 1);
+        fn(t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);   // easeInOutCubic
+        if (t < 1) requestAnimationFrame(step); else resolve();
+      };
+      requestAnimationFrame(step);
+    });
+  }
+  const play = (node, frames, opts) => node.animate(frames, { fill: 'both', ...opts, duration: opts.duration * speed(), delay: (opts.delay || 0) * speed() }).finished.catch(() => {});
+  const wipeOn = (node) => { node.classList.remove('is-hidden'); };
+
+  // 점선이 글자를 따라 그려진 뒤, 오려진 글자 조각들이 하나씩 떨어져 나가며 사진이 드러남
+  async function cutOutWord(svg) {
+    const rect = svg.querySelector('.rs-cut-rect');
+    if (rect) await tween(1300, (t) => rect.setAttribute('width', FRAME.w * t));
+    await sleep(250);
+    const pieces = [...svg.querySelectorAll('.rs-pieces text')];
+    const fall = pieces.map((p) => {
+      const dx = (Math.random() - 0.5) * 70;
+      const dy = 160 + Math.random() * 220;
+      const rot = (Math.random() - 0.5) * 70;
+      return play(p, [{ transform: 'translate(0,0) rotate(0deg)', opacity: 1 }, { transform: `translate(${dx}px,${dy}px) rotate(${rot}deg)`, opacity: 0 }],
+        { duration: 700 + Math.random() * 400, delay: Math.random() * 600, easing: 'cubic-bezier(0.5, 0, 1, 0.6)' });
+    });
+    svg.querySelector('.rs-cut')?.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 500 * speed(), fill: 'forwards' });
+    await Promise.all(fall);
+    svg.querySelector('.rs-pieces')?.remove();
+    svg.querySelector('.rs-cut')?.remove();
+  }
+
+  // 문장 상자가 위에서 하나씩 툭툭 떨어져 붙음
+  async function dropBoxes(sentence) {
+    const boxes = [...sentence.querySelectorAll('.sentence-boxes__box')];
+    boxes.forEach((b) => { b.style.opacity = '0'; });
+    sentence.classList.add('is-in');
+    for (let i = 0; i < boxes.length; i++) {
+      const b = boxes[i];
+      b.style.opacity = '';
+      play(b, [
+        { transform: 'translateY(-70px) rotate(-3deg)', opacity: 0 },
+        { transform: 'translateY(8px) rotate(0.5deg)', opacity: 1, offset: 0.7 },
+        { transform: 'translateY(0) rotate(0)', opacity: 1 },
+      ], { duration: 380, easing: 'cubic-bezier(0.3, 0.7, 0.4, 1)' });
+      await sleep(240);
+    }
+    await sleep(300);
+  }
+
+  // 그림이 칸 바깥에서 4~5컷으로 끊어 날아와 붙는 스톱모션 (구겨진 종이 던지기와 같은 호흡)
+  function throwIn(node) {
+    const rot = parseFloat(node.dataset.rot || '0');
+    const cx = parseFloat(node.style.left) + node.offsetWidth / 2 - FRAME.w / 2;
+    const cy = parseFloat(node.style.top) + node.offsetHeight / 2 - FRAME.h / 2;
+    const len = Math.hypot(cx, cy) || 1;
+    const dx = cx / len; const dy = cy / len;
+    const spin = Math.random() < 0.5 ? -1 : 1;
+    const cuts = [
+      `translate(${dx * 260}px,${dy * 260}px) rotate(${rot + spin * 30}deg) scale(1.14)`,
+      `translate(${dx * 120}px,${dy * 120}px) rotate(${rot - spin * 16}deg) scale(1.09)`,
+      `translate(${dx * 36}px,${dy * 36}px) rotate(${rot + spin * 8}deg) scale(1.04)`,
+      `translate(0,0) rotate(${rot}deg) scale(0.94)`,
+      `translate(0,0) rotate(${rot}deg) scale(1)`,
+    ];
+    node.classList.add('is-in');
+    return play(node, cuts.map((transform, i) => ({ transform, offset: i / cuts.length, easing: 'steps(1, end)' })), { duration: 520 });
+  }
+
+  // 표 한 줄: 위쪽 줄이 쓱 그어진 뒤 내용이 타이핑됨
+  const drawRow = async (valueNode) => { valueNode.parentElement.classList.add('is-drawn'); await sleep(480); };
+
+  // 결과지가 도장 찍히듯 쿵 하고 눌렸다 돌아옴
+  const thump = (sheet) => play(sheet, [
+    { transform: 'scale(1) rotate(0deg)' },
+    { transform: 'scale(1.03) rotate(-0.5deg)', offset: 0.3 },
+    { transform: 'scale(0.985) rotate(0.35deg)', offset: 0.6 },
+    { transform: 'scale(1) rotate(0deg)' },
+  ], { duration: 520, easing: 'ease-out' });
+
+  // 마지막 화면: 커서를 올린 곳이 동그란 돋보기로 크게 보임
+  function setupLens(layer, root, cardWrap) {
+    const D = 230;                                         // 돋보기 지름(px)
+    const M = 2.6;                                         // 확대 배율
+    const lens = el('div', 'rs-lens', layer);
+    const inner = el('div', 'rs-lens__inner', lens);
+    let shown = null;
+    const load = (side) => {
+      if (shown === side) return;
+      shown = side;
+      inner.innerHTML = '';
+      const face = root.faces[side];
+      const clone = face.cloneNode(true);
+      const from = face.querySelectorAll('canvas');
+      clone.querySelectorAll('canvas').forEach((c, i) => {      // 캔버스는 복제되지 않으므로 그림으로 바꿔 줌
+        const img = new Image();
+        img.src = from[i].toDataURL();
+        img.className = c.className;
+        img.style.cssText = c.style.cssText;
+        c.replaceWith(img);
+      });
+      clone.style.transform = 'none';
+      clone.style.backfaceVisibility = 'visible';
+      inner.append(clone);
+    };
+    const hide = () => lens.classList.remove('is-on');
+    layer.addEventListener('pointermove', (e) => {
+      if (document.querySelector('.rp').dataset.stage !== '3') return hide();
+      const rect = cardWrap.getBoundingClientRect();
+      if (e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom) return hide();
+      load(root.dataset.side === 'back' ? 'back' : 'front');
+      const k = (rect.width / SHEET_W) * M;
+      const px = (e.clientX - rect.left) / rect.width * SHEET_W;
+      const py = (e.clientY - rect.top) / rect.height * SHEET_H;
+      lens.style.cssText = `left:${e.clientX - D / 2}px;top:${e.clientY - D / 2}px;width:${D}px;height:${D}px`;
+      inner.style.transform = `translate(${D / 2 - px * k}px, ${D / 2 - py * k}px) scale(${k})`;
+      lens.classList.add('is-on');
+    });
+    layer.addEventListener('pointerleave', hide);
+    root.addEventListener('transitionstart', () => { shown = null; hide(); });   // 뒤집히는 중에는 숨기고, 끝난 뒤 다시 복제
+  }
+
   // ----- 화면에 띄우기: 설문결과1(그림이 쌓임) → 설문결과2(아래로 내려가 표가 타이핑됨) → 설문결과3(작아진 결과지 + 안내) -----
   let stopWatching = null;
   async function show(responses, options) {
@@ -371,7 +541,7 @@
     const g1 = el('p', 'rp-guide__item', guide);
     g1.innerHTML = '<span>1.</span>자세히 보고 싶은 부분에 커서를 올려 보세요.';
     const g2 = el('p', 'rp-guide__item', guide);
-    g2.innerHTML = '<span>2.</span>모니터 카메라를 향해 손가락을 왼쪽에서 오른쪽으로 그어보세요.';
+    g2.innerHTML = '<span>2.</span>모니터 카메라를 향해 손가락을 좌우로 그어보세요.';
     const more = el('button', 'rp-more', guide);
     more.type = 'button';
     more.textContent = 'discover more';
@@ -389,7 +559,15 @@
     cardWrap.append(root);
     creating.textContent = `Creating ${root.nickname}'s RE:FAILURE DICTIONARY...`;
     const front = root.faces.front;
-    window.__flipResult = () => root.classList.toggle('is-flipped');
+    // 손가락을 오른쪽으로 그으면 +180°, 왼쪽으로 그으면 -180° 돌아감 (앞면 ↔ 뒷면)
+    let angle = 0;
+    root.dataset.side = 'front';
+    window.__flipResult = (dir) => {
+      angle += (dir < 0 ? -180 : 180);
+      root.querySelector('.rs-card').style.transform = `rotateY(${angle}deg)`;
+      root.dataset.side = (Math.round(angle / 180) % 2 === 0) ? 'front' : 'back';
+      root.classList.toggle('is-flipped', root.dataset.side === 'back');
+    };
 
     // AI 에게 물어보는 것들은 화면이 쌓이는 동안 미리 요청
     const wordPromise = demo.word ? Promise.resolve(demo.word) : R.translateWord(define.word);
@@ -408,31 +586,44 @@
     const rng = makeRng(opts.seed != null ? opts.seed + 1 : Math.floor(Math.random() * 4294967296));
     const wordSvg = front.art.querySelector('.rs-word');
 
-    // 1) 가운데 박스: 배경 사진 → 글자 모양으로 뚫린 배경색 → 설문2 문장 → 나머지 그림이 무작위 순서로 하나씩
+    // 0) 맨 위 회색 띠: 닉네임 점선이 그려지고, failure → (NO SUCCESS) 에 취소선이 쓱 그어짐
+    await sleep(500);
+    wipeOn(front.nick);
     await sleep(700);
-    front.photo?.classList.add('is-in');
-    await sleep(1000);
-    wordSvg?.classList.add('is-in');
-    await sleep(1300);
-    front.sentence.classList.add('is-in');
-    await sleep(1000);
-    const order = front.stickers.map((s) => s.node);
-    for (let i = order.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [order[i], order[j]] = [order[j], order[i]]; }
-    for (const node of order) { node.classList.add('is-in'); await sleep(320); }
+    wipeOn(front.strikes[0]);
+    await sleep(650);
+    wipeOn(front.strikes[1]);
     await sleep(700);
 
-    // 2) 아래로 내려가 Then 칸 → Now 칸 순서로 내용이 타이핑됨
+    // 1) 가운데 박스: 필름이 현상되듯 사진 → 종이를 덮고 글자를 점선으로 오려내 떨어뜨림 → 설문2 문장이 툭툭 붙음 → 나머지 그림이 스톱모션으로 하나씩
+    front.photo?.classList.add('is-in');
+    await sleep(1900);
+    wordSvg?.classList.add('is-in');
+    await sleep(1200);
+    if (wordSvg) await cutOutWord(wordSvg);
+    await sleep(300);
+    await dropBoxes(front.sentence);
+    const order = front.stickers.map((s) => s.node);
+    for (let i = order.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [order[i], order[j]] = [order[j], order[i]]; }
+    for (const node of order) { throwIn(node); await sleep(380); }
+    await sleep(800);
+
+    // 2) 아래로 내려가 Then 칸 → Now 칸 순서로 줄이 그어지고 내용이 타이핑됨
     rp.dataset.stage = '2';
     await sleep(1300);
+    wipeOn(front.divider);
     fillText(root, 'interpretation', await interpPromise);
     fillText(root, 'example', await examplePromise);
     Object.keys(root.texts).forEach((key) => reserve(root.fields.front[key], root.texts[key]));   // 칸 높이를 먼저 잡아 둠
     for (const key of ['situation', 'criteria', 'interpretation', 'meaning', 'definition', 'example']) {
+      await drawRow(root.fields.front[key]);
       await typeInto(root.fields.front[key], root.texts[key], 34);
       root.typed[key] = true;
       await sleep(260);
     }
-    await sleep(1200);
+    await sleep(500);
+    await thump(root);                       // 도장 찍히듯 쿵
+    await sleep(900);
 
     // 3) 결과지가 작아지며 왼쪽으로, 오른쪽에 안내. 이제 손동작으로 뒤집어 볼 수 있음
     rp.dataset.stage = '3';
@@ -441,7 +632,8 @@
     if (bar && !bar.querySelector('.bar__side')) {
       ['contact', 'about'].forEach((t, i) => { const s = el('span', `bar__side bar__side--${i ? 'right' : 'left'}`, bar); s.textContent = t; });
     }
-    layer.addEventListener('click', (e) => { if (e.shiftKey) window.__flipResult(); });   // (테스트용) Shift+클릭
+    setupLens(layer, root, cardWrap);
+    layer.addEventListener('click', (e) => { if (e.shiftKey) window.__flipResult(e.altKey ? -1 : 1); });   // (테스트용) Shift+클릭 = 오른쪽, Shift+Alt+클릭 = 왼쪽
     if (stopWatching) stopWatching();
     stopWatching = watchSwipe(window.__flipResult, note);
     return root;
@@ -453,8 +645,11 @@
     let timer = null;
     let off = null;
     let cooldown = 0;
-    const fire = () => { const now = performance.now(); if (now < cooldown) return; cooldown = now + 1500; onSwipe(); };
-    const isSwipe = (hist) => window.__isRightwardSwipe && window.__isRightwardSwipe(hist);
+    // 한 번 넘긴 뒤 손이 되돌아오는 움직임이 반대 방향으로 오인되지 않도록 잠시 쉼
+    const fire = (dir) => { const now = performance.now(); if (now < cooldown) return; cooldown = now + 1800; onSwipe(dir); };
+    const rightward = (hist) => window.__isRightwardSwipe && window.__isRightwardSwipe(hist);
+    const leftward = (hist) => rightward(hist.map((p) => ({ t: p.t, x: 1 - p.x })));       // 좌우를 뒤집어 같은 판정을 씀
+    const detect = (hist) => (rightward(hist) ? 1 : leftward(hist) ? -1 : 0);
     (async () => {
       try {
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error('no camera');
@@ -478,18 +673,20 @@
             const now = performance.now();
             if (n >= 6 && n < W * H * 0.35) hist.push({ t: now, x: 1 - sx / n / W });
             hist = hist.filter((p) => now - p.t <= 1000);
-            if (isSwipe(hist)) { hist = []; fire(); }
+            const dir = detect(hist);
+            if (dir) { hist = []; fire(dir); }
           }
           prev = gray;
         }, 40);
       } catch (err) {
-        if (hint) hint.textContent = '카메라를 사용할 수 없어요. 마우스를 왼쪽에서 오른쪽으로 움직여 보세요.';
+        if (hint) hint.textContent = '카메라를 사용할 수 없어요. 마우스를 좌우로 움직여 보세요.';
         let hist = [];
         const onMove = (e) => {
           const now = performance.now();
           hist.push({ t: now, x: e.clientX / window.innerWidth });
           hist = hist.filter((p) => now - p.t <= 1000);
-          if (isSwipe(hist)) { hist = []; fire(); }
+          const dir = detect(hist);
+          if (dir) { hist = []; fire(dir); }
         };
         window.addEventListener('mousemove', onMove);
         off = () => window.removeEventListener('mousemove', onMove);
