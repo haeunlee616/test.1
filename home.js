@@ -521,6 +521,11 @@ function trailFrame(now) {
 }
 requestAnimationFrame(trailFrame);
 
+// 닫힌 책(표지)을 눌러도 CLICK TO OPEN 과 똑같이 열림
+document.querySelector('.cover__front').addEventListener('click', () => {
+  if (!opened) openBtn.click();
+});
+
 openBtn.addEventListener('click', (e) => {
   e.preventDefault();
   if (opened) return;
@@ -548,7 +553,19 @@ document.getElementById('logo-link').addEventListener('click', (e) => {
 // ---------- 마우스에 따라 책을 보는 시점이 살짝 움직임 (3D 시차) ----------
 const stageEl3d = document.querySelector('.stage');
 const view = { x: 50, y: 50, tx: 50, ty: 50, locked: false };
+// 닫힌 책: 정면을 보고 선 채로, 마우스 쪽으로 각도만 살짝 (좌우 ±TILT_Y도, 상하 ±TILT_X도)
+const TILT_Y = 12;
+const TILT_X = 8;
+const bookTiltEl = document.getElementById('book-tilt');
+const tilt = { x: 0, y: 0, tx: 0, ty: 0 };
 window.addEventListener('mousemove', (e) => {
+  const nx = (e.clientX / window.innerWidth - 0.5) * 2;   // -1(왼쪽) ~ 1(오른쪽)
+  const ny = (e.clientY / window.innerHeight - 0.5) * 2;  // -1(위) ~ 1(아래)
+  if (!opened) {
+    tilt.ty = nx * TILT_Y;      // 마우스가 오른쪽이면 책의 오른쪽이 안쪽으로 → 마우스를 바라봄
+    tilt.tx = -ny * TILT_X;     // 마우스가 위쪽이면 책의 윗부분이 안쪽으로
+    return;
+  }
   if (view.locked) return;
   view.tx = 50 + (e.clientX / window.innerWidth - 0.5) * 36;
   view.ty = 50 + (e.clientY / window.innerHeight - 0.5) * 30;
@@ -556,6 +573,10 @@ window.addEventListener('mousemove', (e) => {
 // Let's start 를 누른 뒤에는 시점을 가운데로 돌려놓고 고정 (찢는 종이를 정확히 겹치기 위해)
 window.lockBookView = () => { view.locked = true; view.tx = 50; view.ty = 50; };
 (function viewLoop() {
+  if (opened) { tilt.tx = 0; tilt.ty = 0; }   // 열리는 동안에는 기울기를 정면으로 풀어줌
+  tilt.x += (tilt.tx - tilt.x) * 0.08;
+  tilt.y += (tilt.ty - tilt.y) * 0.08;
+  bookTiltEl.style.transform = `rotateX(${tilt.x.toFixed(2)}deg) rotateY(${tilt.y.toFixed(2)}deg)`;
   view.x += (view.tx - view.x) * 0.07;
   view.y += (view.ty - view.y) * 0.07;
   stageEl3d.style.setProperty('--px', `${view.x.toFixed(2)}%`);

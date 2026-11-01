@@ -1170,13 +1170,13 @@ html, body {
   --book-t: calc(52 * var(--u));                        /* 닫힌 책의 두께 */
 }
 
-/* 닫힌 책은 비스듬히 서 있어서 오른쪽 책장 옆면이 보이고, 열리면서 정면으로 돌아옴 */
+/* 닫힌 책은 정면을 향한 채 마우스 쪽으로 각도만 살짝 기울어짐. 열리면서 5deg 로 눕는 자세로 이어짐 */
 .book-pose {
   position: absolute;
   left: 0;
   top: 0;
   transform-style: preserve-3d;
-  transform: rotateX(-4deg) rotateY(-26deg);
+  transform: none;                       /* 닫힌 책은 정면으로 고정 (마우스에 따른 기울기는 .book-tilt, home.js) */
   transition: transform var(--open-dur) var(--open-ease) var(--open-delay);
 }
 .is-open .book-pose { transform: rotateX(5deg) rotateY(0deg); }
@@ -1480,3 +1480,14 @@ html, body {
   clip-path: circle(0 at 50% 50%);
 }
 .survey-wipe--behind { z-index: 0; }
+
+/* 마우스를 따라 닫힌 책의 각도만 살짝 바뀜 (transition 없이 매 프레임 home.js 가 갱신) */
+.book-tilt {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-style: preserve-3d;
+}
+/* 닫힌 책(표지)을 눌러도 열림 */
+.cover__front { pointer-events: auto; cursor: pointer; }
+.is-open .cover__front { pointer-events: none; cursor: auto; }
