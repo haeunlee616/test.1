@@ -1491,3 +1491,82 @@ html, body {
 /* 닫힌 책(표지)을 눌러도 열림 */
 .cover__front { pointer-events: auto; cursor: pointer; }
 .is-open .cover__front { pointer-events: none; cursor: auto; }
+
+/* ================= Let's start 다음 화면: 어두운 배경 + 사전 종이 (카메라 손동작 → 취소선 → 구겨짐) ================= */
+.logo--white { display: none; }
+.is-dark .logo--ink { display: none; }
+.is-dark .logo--white { display: block; }
+.nav { transition: opacity 0.15s ease, text-decoration-color 0.15s ease, color 0.3s ease; }
+.is-dark .nav { color: #fff; }
+
+.define-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  background: #1b1b1b;
+  transform: translateY(100%);
+  pointer-events: none;
+  visibility: hidden;
+}
+.is-define .define-layer { visibility: visible; transform: none; }
+.define-ready .define-layer { pointer-events: auto; }
+
+.dfn {
+  position: absolute;
+  left: 50%;
+  top: calc(50vh - 512 * var(--u));
+  top: calc(50dvh - 512 * var(--u));
+  width: calc(1440 * var(--u));
+  height: calc(1024 * var(--u));
+  transform: translateX(-50%);
+  color: #fff;
+  font-family: "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+}
+.dfn__paper {
+  position: absolute;
+  left: calc(445.86 * var(--u));
+  top: calc(231.86 * var(--u));
+  width: calc(548 * var(--u));
+  height: calc(477 * var(--u));
+}
+.dfn__paper img,
+.dfn__strike { position: absolute; inset: 0; width: 100%; height: 100%; display: block; user-select: none; }
+.dfn__strike { overflow: visible; }
+.dfn__strike path {
+  fill: none;
+  stroke: #000;
+  stroke-width: 4;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+}
+.dfn.is-struck .dfn__strike path { animation: dfn-strike 0.45s cubic-bezier(0.3, 0.6, 0.3, 1) forwards; }
+@keyframes dfn-strike { to { stroke-dashoffset: 0; } }
+.define-layer.is-crumpling .dfn__paper { visibility: hidden; }
+
+.dfn__hint {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  top: calc(809 * var(--u));
+  margin: 0;
+  text-align: center;
+  font-size: calc(28 * var(--u));
+  font-weight: 400;
+  letter-spacing: -0.04em;
+  line-height: 1.3;
+  transition: opacity 0.4s ease;
+}
+.dfn.is-struck .dfn__hint { opacity: 0; }
+
+/* 구겨지는 종이를 그리는 캔버스 (화면 전체) */
+.dfn__gl {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  display: none;
+}
+.define-layer.is-crumpling .dfn__gl { display: block; }
+.dfn__video { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }

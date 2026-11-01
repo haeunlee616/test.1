@@ -91,7 +91,8 @@
   <header class="top">
     <a class="nav nav--left" href="#contact" id="contact-btn">contact</a>
     <a class="logo-link" href="./" id="logo-link" aria-label="처음 화면으로">
-      <img class="logo" src="assets/logo.png" alt="failure your Re:Definition">
+      <img class="logo logo--ink" src="assets/logo.png" alt="failure your Re:Definition">
+      <img class="logo logo--white" src="assets/logo-white.png" alt="" aria-hidden="true">
     </a>
     <a class="nav nav--right" href="#about" id="about-btn">about</a>
   </header>
@@ -117,6 +118,21 @@
       </filter>
     </defs>
   </svg>
+
+  <!-- Let's start 다음 화면: 어두운 배경의 사전 종이. 카메라 앞에서 손가락을 왼쪽→오른쪽으로 움직이면 failure 에 취소선이 그어지고, 종이가 구겨짐 -->
+  <div class="define-layer" id="define-layer" aria-hidden="true">
+    <section class="dfn" id="dfn">
+      <div class="dfn__paper" id="dfn-paper">
+        <img src="assets/definition-paper.svg" alt="failure — noun (NO SUCCESS)" id="dfn-img" draggable="false">
+        <svg class="dfn__strike" viewBox="0 0 548 477" aria-hidden="true">
+          <path id="dfn-strike" d="M43.2 114.3L212.1 108" pathLength="1"/>
+        </svg>
+      </div>
+      <p class="dfn__hint" id="dfn-hint">모니터 카메라를 향해 손가락을 왼쪽에서 오른쪽으로 움직여 보세요.</p>
+      <video class="dfn__video" id="dfn-video" playsinline muted></video>
+    </section>
+    <canvas class="dfn__gl" id="dfn-gl"></canvas>
+  </div>
 
   <!-- 설문 화면: 화면 아래에서 올라오는 레이어 (질문 7개, 질문마다 내용이 바뀜) -->
   <div class="survey-layer" id="survey-layer" data-bg="f1">
@@ -158,5 +174,6 @@
 
   <script src="home.js"></script>
   <script src="survey.js"></script>
+  <script src="define.js"></script>
 </body>
 </html>

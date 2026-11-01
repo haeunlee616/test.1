@@ -453,10 +453,20 @@ function riseToSurvey() {
   const h = window.innerHeight;
 
   document.body.classList.add('is-survey');
-  stage.animate(
-    [{ transform: 'translateY(0)' }, { transform: `translateY(${-h}px)` }],
-    { duration: RISE_MS, easing: 'linear', fill: 'forwards' },
-  );
+  const defineLayer = document.getElementById('define-layer');
+  if (document.body.classList.contains('is-define')) {
+    // 사전 종이 화면이 위로 밀려 올라가고, 그 자리를 설문이 채움 (둘 다 일정한 속도)
+    defineLayer.animate(
+      [{ transform: 'translateY(0)' }, { transform: `translateY(${-h}px)` }],
+      { duration: RISE_MS, easing: 'linear', fill: 'forwards' },
+    ).onfinish = () => { defineLayer.style.visibility = 'hidden'; };
+    setTimeout(() => document.body.classList.remove('is-dark'), RISE_MS * 0.8);   // 설문은 밝은 배경이라 상단 메뉴·로고를 다시 검정으로
+  } else {
+    stage.animate(
+      [{ transform: 'translateY(0)' }, { transform: `translateY(${-h}px)` }],
+      { duration: RISE_MS, easing: 'linear', fill: 'forwards' },
+    );
+  }
   const rise = layer.animate(
     [{ transform: `translateY(${h}px)` }, { transform: 'translateY(0)' }],
     { duration: RISE_MS, easing: 'linear' },
@@ -477,5 +487,6 @@ document.getElementById('start-btn').addEventListener('click', (e) => {
 
   showQuestion(0, true);
   document.body.classList.add('is-leaving'); // 버튼이 가운데로 모이며 사라지고, 가운데 문구도 사라지고, 책이 반듯해짐
-  setTimeout(riseToSurvey, LEAVE_MS);
+  // 책 장면이 위로 올라가고 그 자리를 사전 종이 화면이 채움 → 손동작 → 취소선 → 구겨짐 → 설문 (define.js)
+  setTimeout(() => (window.startDefine ? window.startDefine(riseToSurvey) : riseToSurvey()), LEAVE_MS);
 });
