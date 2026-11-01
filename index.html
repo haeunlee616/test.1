@@ -4,7 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Failure, Your Re:Definition</title>
-<link rel="stylesheet" href="home.css">
+<script>document.write('<link rel="stylesheet" href="home.css' + (/^(localhost|127\.0\.0\.1)$/.test(location.hostname) ? '?v=' + Date.now() : '') + '">');</script>
+<noscript><link rel="stylesheet" href="home.css"></noscript>
 </head>
 <body>
 
@@ -173,15 +174,15 @@
   <!-- 커서를 따라다니는 단어 박스 -->
   <div class="trail" id="trail" aria-hidden="true"></div>
 
-  <script src="home.js"></script>
-  <script src="stickers.js"></script>
-  <script src="sentence.js"></script>
-  <script src="nickname.js"></script>
-  <script src="interpretation-prompt.js"></script>
-  <script src="result.js"></script>
-  <script src="resultsheet.js"></script>
-  <script src="archive.js"></script>
-  <script src="survey.js"></script>
-  <script src="define.js"></script>
+  <!-- 스크립트: 내 컴퓨터(localhost)에서는 파일이 바뀌어도 브라우저가 예전 파일을 쓰지 않도록 매번 새로 받음 (배포된 사이트는 서버가 알아서 확인) -->
+  <script>
+    (function () {
+      var dev = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+      var q = dev ? '?v=' + Date.now() : '';
+      ['home', 'stickers', 'sentence', 'nickname', 'interpretation-prompt', 'result', 'resultsheet', 'archive', 'survey', 'define'].forEach(function (f) {
+        document.write('<script src="' + f + '.js' + q + '"><\/script>');
+      });
+    })();
+  </script>
 </body>
 </html>
