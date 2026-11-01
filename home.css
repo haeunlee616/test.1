@@ -1748,15 +1748,42 @@ html, body {
 }
 
 /* ---------- 결과지 (앞면·뒷면) — 시안 크기 1050×1407 을 화면 높이에 맞춰 줄여서 보여 줌 ---------- */
-.result-layer { position: fixed; inset: 0; z-index: 90; display: none; overflow: hidden; background: #e9e9e9; }
-.result-layer.is-on { display: block; }
-.rs-stage { position: absolute; left: 50%; top: 0; width: 1050px; height: 1407px; transform: translateX(-50%) scale(var(--rs-scale, 1)); transform-origin: top center; }
+.result-layer { position: fixed; inset: 0; z-index: 8; background: #fff; opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 0.6s ease; }
+.result-layer.is-on { opacity: 1; visibility: visible; pointer-events: auto; }
+
+/* 설문결과 1·2·3 : 시안 1440×1024 캔버스 (설문 화면과 같은 배율) — 위·아래 검정 바와 로고는 기존 고정 요소를 그대로 씀 */
+.rp { position: absolute; left: 50%; width: 1440px; height: 1024px; transform: translateX(-50%) scale(var(--rs-u, 1)); transform-origin: top center; }
+.rp-scroll { position: absolute; inset: 0; transition: transform 1.1s cubic-bezier(0.6, 0, 0.2, 1); }
+.rp[data-stage="2"] .rp-scroll { transform: translateY(-529px); }         /* 설문결과2: 결과지 아래쪽(표)이 보이도록 */
+.rp-card { position: absolute; left: 0; top: 0; width: 1050px; height: 1407px; transform-origin: 0 0; transform: translate(308px, 163px) scale(0.7848); filter: drop-shadow(0 1px 5px rgba(0, 0, 0, 0.22)); transition: transform 1.1s cubic-bezier(0.6, 0, 0.2, 1); }
+.rp[data-stage="3"] .rp-card { transform: translate(202px, 165px) scale(0.4933); }   /* 설문결과3: 작아져서 왼쪽으로 */
+.rp-creating { position: absolute; left: 0; top: 1338px; width: 1440px; margin: 0; text-align: center; font: 700 27px "Pretendard", sans-serif; letter-spacing: -0.04em; color: #1b1b1b; transition: opacity 0.6s ease; }
+.rp[data-stage="3"] .rp-creating { opacity: 0; }
+.rp-guide { position: absolute; left: 820px; top: 418px; width: 560px; opacity: 0; pointer-events: none; transition: opacity 0.8s ease 0.7s; }
+.rp[data-stage="3"] .rp-guide { opacity: 1; pointer-events: auto; }
+.rp-guide__item { display: flex; gap: 12px; margin: 0 0 20px; font: 500 27px/40px "Pretendard", sans-serif; letter-spacing: -0.04em; color: #111; }
+.rp-guide__item span { flex: none; }
+.rp-more { position: absolute; left: 303px; top: 178px; width: 152px; height: 36px; border: 0; border-radius: 18px; background: #1b1b1b; color: #fff; font: 400 22px/36px "Futura Cyrillic", "Futura", sans-serif; letter-spacing: -0.04em; cursor: pointer; }
+.rp-note { position: absolute; left: 0; top: 240px; margin: 0; font: 500 15px "Pretendard", sans-serif; letter-spacing: -0.04em; color: #777; }
+.bar__side { position: absolute; top: 50%; transform: translateY(-50%); font: 400 25px/1 "American Typewriter", Georgia, serif; letter-spacing: -0.04em; color: #fff; }
+.bar__side--left { left: calc(80 * var(--u)); }
+.bar__side--right { right: calc(80 * var(--u)); }
 .rs-sheet { width: 1050px; height: 1407px; perspective: 3000px; }
 .rs-card { position: relative; width: 100%; height: 100%; transform-style: preserve-3d; transition: transform 0.9s cubic-bezier(0.6, 0, 0.2, 1); }
 .rs-sheet.is-flipped .rs-card { transform: rotateY(180deg); }
+
+/* 하나씩 얹히는 연출 (앞면) */
+.rs-step { opacity: 0; transition: opacity 0.8s ease; }
+.rs-step.is-in { opacity: 1; }
+.rs-step.rs-wipe { opacity: 1; clip-path: inset(0 100% 0 0); transition: clip-path 1.1s cubic-bezier(0.6, 0, 0.2, 1); }
+.rs-step.rs-wipe.is-in { clip-path: inset(0 0 0 0); }
+.rs-step.rs-pop { scale: 0.8; transition: opacity 0.35s ease, scale 0.4s cubic-bezier(0.3, 1.5, 0.5, 1); }
+.rs-step.rs-pop.is-in { scale: 1; }
+.rs-photo { position: absolute; inset: 0; background-size: cover; background-position: center; }
+.rs-ghost { visibility: hidden; }
+.rs-row__value.is-typing .rs-typed::after { content: ""; display: inline-block; width: 2px; height: 0.9em; margin-left: 1px; vertical-align: -0.1em; background: #000; }
 .rs-face { position: absolute; inset: 0; overflow: hidden; background: #fff; backface-visibility: hidden; color: #000; }
 .rs-face--back { transform: rotateY(180deg); }
-.rs-hint { position: fixed; left: 50%; bottom: 12px; z-index: 5; transform: translateX(-50%); padding: 6px 14px; border-radius: 999px; background: rgba(255, 255, 255, 0.88); font: 500 13px "Pretendard", sans-serif; letter-spacing: -0.04em; color: #555; white-space: nowrap; }
 
 /* 머리: 회색 띠 + failure / noun (NO SUCCESS) + 닉네임 문구 */
 .rs-head { position: absolute; left: 0; top: 0; width: 1050px; height: 216px; background: #444 url("assets/result/header.png") center / cover; }
@@ -1791,3 +1818,6 @@ html, body {
 .rs-now .rs-row__label { width: 148px; }
 .rs-row__value { flex: 1; font-weight: 400; word-break: break-all; }
 .rs-divider { position: absolute; left: 524px; top: 957px; width: 2px; height: 413px; background: #000; }
+
+/* 결과 화면에서는 첫 화면의 'CLICK TO OPEN' 과 책 문구를 감춤 */
+.is-result .open, .is-result .caption { display: none; }

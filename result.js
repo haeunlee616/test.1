@@ -83,17 +83,7 @@ const situationText = (selected) => (selected || []).join(RESULT_PLACEMENT.situa
 // 안내문은 interpretation-prompt.js, AI 호출은 서버(/api/interpret)가 맡습니다. 브라우저는 응답만 보내고 문장만 받습니다.
 async function interpret(responses) {
   const { input } = fromSurvey(responses).interpretation;
-  try {
-    const res = await fetch('/api/interpret', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sentence: input.sentence, situation: input.situation, criteria: input.criteria }),
-    });
-    if (!res.ok) return null;                 // 서버에 키가 없거나 AI 가 실패하면 null (결과지에서 해석 칸을 비워 두거나 대체 문구를 씀)
-    return (await res.json()).text || null;
-  } catch (err) {
-    return null;
-  }
+  return askServer('/api/interpret', { sentence: input.sentence, situation: input.situation, criteria: input.criteria });   // 서버에 키가 없거나 AI 가 실패하면 null
 }
 
 // ----- 큰 글자: 설문7 첫 칸 → 영어 단어 -----
@@ -108,12 +98,22 @@ function englishWord(input) {
 }
 
 // 서버(/api/…)에 물어서 문장을 받음. 키가 없거나 실패하면 null
+const LIVE_API = 'https://failure-dictionary.onrender.com';
+const IS_LOCAL = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
 async function askServer(path, body) {
-  try {
-    const res = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-    if (!res.ok) return null;
+  const call = async (base) => {
+    const res = await fetch(base + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    if (!res.ok) { const err = new Error(`HTTP ${res.status}`); err.status = res.status; throw err; }
     return (await res.json()).text || null;
+  };
+  try {
+    return await call('');
   } catch (err) {
+    // 내 컴퓨터에서 정적 서버로만 열었을 때(이 경로의 API 가 없음)는 배포된 서버의 AI 를 대신 씀
+    if (IS_LOCAL && (err.status === 404 || err.status === 501 || err.status === undefined)) {
+      try { return await call(window.__LIVE_API || LIVE_API); } catch (e2) { console.warn('AI 요청 실패', path, e2.message); return null; }
+    }
+    console.warn('AI 요청 실패', path, err.message);
     return null;
   }
 }

@@ -192,13 +192,22 @@
   }
 
   // ----- 한 면 만들기 -----
+  // 앞면은 처음에 '비어 있는' 상태로 만들어 두고 show() 가 차례로 켬: 사진 → 글자 모양으로 뚫린 배경색 → 가운데 문장 → 그림들 → 표 글자
   function buildFace(side, ctx) {
     const face = el('div', `rs-face rs-face--${side}`);
     const frame = el('div', 'rs-frame', face);
     frame.style.cssText = `left:${FRAME.x}px;top:${FRAME.y}px;width:${FRAME.w}px;height:${FRAME.h}px`;
     const art = el('div', 'rs-art', frame);
-    art.style.backgroundColor = side === 'front' ? (ctx.color || '#e8ff8e') : '#222';
-    if (side === 'back' && ctx.hero) { art.style.backgroundImage = `url(${ctx.hero})`; }
+    if (ctx.hero) {
+      if (side === 'front') {
+        const photo = el('div', 'rs-photo rs-step', art);        // 앞면: 사진이 먼저 깔리고
+        photo.style.backgroundImage = `url(${ctx.hero})`;
+        face.photo = photo;
+      } else {
+        art.style.backgroundColor = '#222';
+        art.style.backgroundImage = `url(${ctx.hero})`;          // 뒷면: 사진이 바탕
+      }
+    }
     face.art = art;
     face.frame = frame;
     return face;
@@ -210,41 +219,44 @@
     if (!layout) return;
     const svg = svgEl('svg', { class: 'rs-word', viewBox: `0 0 ${FRAME.w} ${FRAME.h}`, width: FRAME.w, height: FRAME.h });
     if (side === 'front') {
-      const mask = svgEl('mask', { id: 'rs-word-mask', maskUnits: 'userSpaceOnUse', x: 0, y: 0, width: FRAME.w, height: FRAME.h });
-      mask.append(wordGroup(layout, { fill: '#fff', stroke: '#fff' }));
+      // 앞면: 사진 위에 '지금' 색 판을 덮되 글자 모양(둘레 점 포함)만 뚫어 사진이 글자 안에서만 보이게 함
+      const mask = svgEl('mask', { id: 'rs-word-hole', maskUnits: 'userSpaceOnUse', x: 0, y: 0, width: FRAME.w, height: FRAME.h });
+      mask.append(svgEl('rect', { x: 0, y: 0, width: FRAME.w, height: FRAME.h, fill: '#fff' }));
+      mask.append(wordGroup(layout, { fill: '#000', stroke: '#000' }));
       const defs = svgEl('defs');
       defs.append(mask);
       svg.append(defs);
-      const bg = svgEl('image', { href: ctx.hero || '', x: 0, y: 0, width: FRAME.w, height: FRAME.h, preserveAspectRatio: 'xMidYMid slice', mask: 'url(#rs-word-mask)' });
-      svg.append(bg);
+      svg.append(svgEl('rect', { x: 0, y: 0, width: FRAME.w, height: FRAME.h, fill: ctx.color || '#e8ff8e', mask: 'url(#rs-word-hole)' }));
+      svg.classList.add('rs-step', 'rs-wipe');
     } else {
       const c = ctx.color || '#e8ff8e';
       svg.append(wordGroup(layout, { fill: c, stroke: c }));
     }
-    face.art.prepend(svg);
+    face.art.append(svg);
   }
 
-  function infoTable(title, rows) {
+  // 표 한 칸: 왼쪽 제목(label)은 처음부터 보이고, 오른쪽 내용(value)만 나중에 채워짐
+  function infoTable(title, rows, fields, side) {
     const box = el('div', 'rs-table');
     el('div', 'rs-table__title', box).textContent = title;
-    rows.forEach(({ label, value, key }) => {
+    rows.forEach(({ label, key }) => {
       const row = el('div', 'rs-row', box);
       el('div', 'rs-row__label', row).textContent = label;
       const v = el('div', 'rs-row__value', row);
-      v.textContent = value || '';
-      if (key) row.dataset.key = key;
+      fields[side][key] = v;
     });
     return box;
   }
 
   // ----- 전체 결과지 (앞면·뒷면 + 3D 카드) -----
-  async function build(resp, extra) {
+  async function build(resp) {
     const data = window.Result.fromSurvey(resp);
     const colors = (typeof resp[5] === 'object' && resp[5] && 'answer' in resp[5] ? resp[5].answer : resp[5]) || {};
     const ctx = { color: data.frameColor, hero: data.hero };
     const root = el('div', 'rs-sheet');
     const card = el('div', 'rs-card', root);
     const faces = {};
+    const fields = { front: {}, back: {} };
     for (const side of ['front', 'back']) {
       const face = buildFace(side, ctx);
       faces[side] = face;
@@ -259,87 +271,175 @@
       head.append(mark);
       // 그림들
       face.stickers = await stickerNodes(resp, colors);
-      face.stickers.forEach((s) => face.art.append(s.node));
+      face.stickers.forEach((s) => { face.art.append(s.node); if (side === 'front') s.node.classList.add('rs-step', 'rs-pop'); });
       // 문장 상자 (가운데 칸의 정중앙, 가장 위)
       const sentence = window.Sentence.render(window.Sentence.segment(data.sentence));
       sentence.classList.add('rs-sentence');
+      if (side === 'front') sentence.classList.add('rs-step');
+      face.sentence = sentence;
       face.art.append(sentence);
       // 손잡이 네모
       ['tl', 'tr', 'bl', 'br'].forEach((c) => el('i', `rs-handle rs-handle--${c}`, face.frame));
-      // 표
+      // 표 (제목은 바로, 내용은 비워 둠)
       const then = infoTable('Then', [
-        { label: '상황', value: data.situation },
-        { label: '판단 기준', value: data.criteria ? data.criteria.text : '' },
-        { label: '해석', value: extra.interpretation || '', key: 'interpretation' },
-      ]);
+        { label: '상황', key: 'situation' }, { label: '판단 기준', key: 'criteria' }, { label: '해석', key: 'interpretation' },
+      ], fields, side);
       then.classList.add('rs-then');
       const now = infoTable('Now', [
-        { label: '의미', value: data.now.meaning },
-        { label: data.now.newStart, value: data.now.definition },
-        { label: '예문', value: extra.example || '', key: 'example' },
-      ]);
+        { label: '의미', key: 'meaning' }, { label: data.now.newStart, key: 'definition' }, { label: '예문', key: 'example' },
+      ], fields, side);
       now.classList.add('rs-now');
       face.append(then, now, el('div', 'rs-divider', face));
     }
     root.faces = faces;
     root.ctx = ctx;
+    root.fields = fields;
+    root.nickname = data.nickname;
+    root.texts = { situation: data.situation, criteria: data.criteria ? data.criteria.text : '', meaning: data.now.meaning, definition: data.now.definition };
+    root.typed = {};
+    // 뒷면은 처음부터 완성된 상태로 둠 (앞면의 내용은 타이핑으로 채워짐)
+    Object.entries(root.texts).forEach(([k, v]) => { fields.back[k].textContent = v; });
     return root;
   }
 
-  // ----- 화면에 띄우기 + AI 로 채우기 + 뒤집기 -----
+  // AI 가 보낸 문장을 저장: 뒷면은 바로, 앞면은 이미 타이핑이 끝난 칸만 바로 채움
+  function fillText(root, key, text) {
+    if (!text) return;
+    root.texts[key] = text;
+    root.fields.back[key].textContent = text;
+    if (root.typed[key]) root.fields.front[key].textContent = text;
+  }
+
+  // ----- 타이핑처럼 글자가 하나씩 나오게 -----
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms * (window.__rsSpeed || 1)));
+  // 아직 안 나온 글자 자리를 투명하게 미리 잡아 둠 (타이핑 중에 줄 높이가 바뀌어 아래 칸이 밀리지 않게)
+  function reserve(node, text) {
+    node.textContent = '';
+    const typed = el('span', 'rs-typed', node);
+    const ghost = el('span', 'rs-ghost', node);
+    ghost.textContent = text || '';
+    return { typed, ghost };
+  }
+  function typeInto(node, text, perChar) {
+    return new Promise((resolve) => {
+      const chars = Array.from(text || '');
+      const { typed, ghost } = reserve(node, text);
+      node.classList.add('is-typing');
+      let i = 0;
+      const tick = () => {
+        i++;
+        typed.textContent = chars.slice(0, i).join('');
+        ghost.textContent = chars.slice(i).join('');
+        if (i < chars.length) setTimeout(tick, perChar * (window.__rsSpeed || 1));
+        else { node.classList.remove('is-typing'); resolve(); }
+      };
+      if (!chars.length) { node.classList.remove('is-typing'); resolve(); return; }
+      tick();
+    });
+  }
+
+  // ----- 화면에 띄우기: 설문결과1(그림이 쌓임) → 설문결과2(아래로 내려가 표가 타이핑됨) → 설문결과3(작아진 결과지 + 안내) -----
   let stopWatching = null;
   async function show(responses, options) {
     const opts = options || {};
     const R = window.Result;
     const pick = (n) => { const it = responses[n]; return it && typeof it === 'object' && !Array.isArray(it) && 'answer' in it ? it.answer : it; };
     const define = pick(6) || {};
+    const demo = opts.demo || {};
+
     const layer = document.getElementById('result-layer') || el('div', 'result-layer', document.body);
     layer.id = 'result-layer';
     layer.innerHTML = '';
-    layer.classList.add('is-on');
     document.body.classList.add('is-result');
-    const hint = el('div', 'rs-hint', layer);
-    hint.textContent = '만드는 중…';
+    // 맨 위·아래 고정 메뉴의 글자를 결과 화면용으로
+    const navL = document.getElementById('contact-btn');
+    const navR = document.getElementById('about-btn');
+    if (navL) navL.textContent = 'archive';
+    if (navR) navR.textContent = 'publication';
 
-    const demoTexts = opts.demo || {};
-    const root = await build(responses, { interpretation: demoTexts.interpretation, example: demoTexts.example });
-    const stage = el('div', 'rs-stage', layer);
-    stage.append(root);
-    layer.append(hint);
+    const rp = el('div', 'rp', layer);
+    rp.dataset.stage = '1';
+    const scroll = el('div', 'rp-scroll', rp);
+    const cardWrap = el('div', 'rp-card', scroll);
+    const creating = el('p', 'rp-creating', scroll);
+    const guide = el('div', 'rp-guide', rp);
+    const g1 = el('p', 'rp-guide__item', guide);
+    g1.innerHTML = '<span>1.</span>자세히 보고 싶은 부분에 커서를 올려 보세요.';
+    const g2 = el('p', 'rp-guide__item', guide);
+    g2.innerHTML = '<span>2.</span>모니터 카메라를 향해 손가락을 왼쪽에서 오른쪽으로 그어보세요.';
+    const more = el('button', 'rp-more', guide);
+    more.type = 'button';
+    more.textContent = 'discover more';
+    const note = el('p', 'rp-note', guide);
     const fit = () => {
-      const s = Math.min(window.innerWidth / SHEET_W, window.innerHeight / SHEET_H);
-      stage.style.setProperty('--rs-scale', s);
+      const u = Math.max(Math.min(window.innerWidth / 1440, window.innerHeight / 1024), 0.6);
+      rp.style.setProperty('--rs-u', u);
+      rp.style.top = `${window.innerHeight / 2 - 512 * u}px`;
     };
     fit();
     window.addEventListener('resize', fit);
+    requestAnimationFrame(() => layer.classList.add('is-on'));
 
-    // 큰 글자 (한글이면 AI 번역, 영어면 바로)
-    const wordPromise = demoTexts.word ? Promise.resolve(demoTexts.word) : R.translateWord(define.word);
-    wordPromise.then(async (english) => {
-      const text = english || String(define.word || '').trim();
-      await document.fonts.load(`700 100px ${WORD_FONT}`);
-      const layout = text ? layoutWord(text, FRAME.w, FRAME.h) : null;
-      paintWord(root.faces.front, 'front', layout, root.ctx);
-      paintWord(root.faces.back, 'back', layout, root.ctx);
-      root.dataset.word = text;
-      placeAll(root, layout, opts.seed != null ? opts.seed : Math.floor(Math.random() * 4294967296));
-    });
-    // 해석·예문 (AI)
-    if (!demoTexts.interpretation) R.interpret(responses).then((t) => fillText(root, 'interpretation', t));
-    if (!demoTexts.example) R.exampleSentence(define.word, define.meaning).then((t) => fillText(root, 'example', t));
+    const root = await build(responses);
+    cardWrap.append(root);
+    creating.textContent = `Creating ${root.nickname}'s RE:FAILURE DICTIONARY...`;
+    const front = root.faces.front;
+    window.__flipResult = () => root.classList.toggle('is-flipped');
 
-    hint.textContent = '손가락을 카메라에 대고 왼쪽에서 오른쪽으로 그어 보세요';
-    const flip = () => { root.classList.toggle('is-flipped'); };
-    layer.addEventListener('click', (e) => { if (e.shiftKey) flip(); });   // (테스트용) Shift+클릭
-    window.__flipResult = flip;
+    // AI 에게 물어보는 것들은 화면이 쌓이는 동안 미리 요청
+    const wordPromise = demo.word ? Promise.resolve(demo.word) : R.translateWord(define.word);
+    const interpPromise = demo.interpretation ? Promise.resolve(demo.interpretation) : R.interpret(responses);
+    const examplePromise = demo.example ? Promise.resolve(demo.example) : R.exampleSentence(define.word, define.meaning);
+
+    // 큰 글자 모양을 정하고 그림 자리를 잡아 둠 (아직 보이지 않음)
+    const english = await wordPromise;
+    const text = english || String(define.word || '').trim();
+    await document.fonts.load(`700 100px ${WORD_FONT}`);
+    const layout = text ? layoutWord(text, FRAME.w, FRAME.h) : null;
+    paintWord(root.faces.front, 'front', layout, root.ctx);
+    paintWord(root.faces.back, 'back', layout, root.ctx);
+    root.dataset.word = text;
+    placeAll(root, layout, opts.seed != null ? opts.seed : Math.floor(Math.random() * 4294967296));
+    const rng = makeRng(opts.seed != null ? opts.seed + 1 : Math.floor(Math.random() * 4294967296));
+    const wordSvg = front.art.querySelector('.rs-word');
+
+    // 1) 가운데 박스: 배경 사진 → 글자 모양으로 뚫린 배경색 → 설문2 문장 → 나머지 그림이 무작위 순서로 하나씩
+    await sleep(700);
+    front.photo?.classList.add('is-in');
+    await sleep(1000);
+    wordSvg?.classList.add('is-in');
+    await sleep(1300);
+    front.sentence.classList.add('is-in');
+    await sleep(1000);
+    const order = front.stickers.map((s) => s.node);
+    for (let i = order.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [order[i], order[j]] = [order[j], order[i]]; }
+    for (const node of order) { node.classList.add('is-in'); await sleep(320); }
+    await sleep(700);
+
+    // 2) 아래로 내려가 Then 칸 → Now 칸 순서로 내용이 타이핑됨
+    rp.dataset.stage = '2';
+    await sleep(1300);
+    fillText(root, 'interpretation', await interpPromise);
+    fillText(root, 'example', await examplePromise);
+    Object.keys(root.texts).forEach((key) => reserve(root.fields.front[key], root.texts[key]));   // 칸 높이를 먼저 잡아 둠
+    for (const key of ['situation', 'criteria', 'interpretation', 'meaning', 'definition', 'example']) {
+      await typeInto(root.fields.front[key], root.texts[key], 34);
+      root.typed[key] = true;
+      await sleep(260);
+    }
+    await sleep(1200);
+
+    // 3) 결과지가 작아지며 왼쪽으로, 오른쪽에 안내. 이제 손동작으로 뒤집어 볼 수 있음
+    rp.dataset.stage = '3';
+    document.body.classList.add('is-result-guide');
+    const bar = document.querySelector('footer.bar');
+    if (bar && !bar.querySelector('.bar__side')) {
+      ['contact', 'about'].forEach((t, i) => { const s = el('span', `bar__side bar__side--${i ? 'right' : 'left'}`, bar); s.textContent = t; });
+    }
+    layer.addEventListener('click', (e) => { if (e.shiftKey) window.__flipResult(); });   // (테스트용) Shift+클릭
     if (stopWatching) stopWatching();
-    stopWatching = watchSwipe(flip, hint);
+    stopWatching = watchSwipe(window.__flipResult, note);
     return root;
-  }
-
-  function fillText(root, key, text) {
-    if (!text) return;
-    root.querySelectorAll(`[data-key="${key}"] .rs-row__value`).forEach((n) => { n.textContent = text; });
   }
 
   // 카메라로 '왼쪽 → 오른쪽' 손동작을 지켜봄 (define.js 와 같은 판정). 카메라를 쓸 수 없으면 마우스
@@ -400,6 +500,8 @@
   window.ResultSheet = { show, layoutWord, SIZES, FRAME };
 
   // 확인용: 주소 끝에 ?result=example 을 붙이면 시안 예시 응답으로 결과지를 바로 띄움 (AI 대신 시안의 문장 사용)
+  const speedParam = /[?&]rsspeed=([0-9.]+)/.exec(location.search);
+  if (speedParam) window.__rsSpeed = parseFloat(speedParam[1]);          // 확인용: 연출 속도 배율 (0.2 = 5배 빠르게)
   if (/[?&]result=example/.test(location.search)) {
     window.addEventListener('load', () => window.ResultSheet.show(
       ['H.E', '원하는 회사에 지원했지만 최종 면접에서 떨어졌어요', ['멈춤', '포기', '허탈함'], ['취업·합격 여부', '자기 실망', '사회적 기준', '후회와 미련'],

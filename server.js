@@ -13,6 +13,19 @@ const OPENAI_BASE_URL = process.env.OPENAI_BASE_URL || 'https://api.openai.com/v
 app.set('trust proxy', 1);              // Render 앞단 프록시 뒤에서도 방문자 IP 를 제대로 읽음
 app.use(express.json({ limit: '10kb' }));
 
+// 내 컴퓨터(localhost)에서 열어 본 화면이 이 서버의 AI 를 쓸 수 있게 허용 (다른 사이트는 허용하지 않음)
+app.use('/api', (req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin && /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.setHeader('Vary', 'Origin');
+  }
+  if (req.method === 'OPTIONS') return res.sendStatus(204);
+  return next();
+});
+
 // 같은 방문자가 AI 를 마구 부르지 못하게: IP 당 1분에 10번
 const RATE_WINDOW_MS = 60 * 1000;
 const RATE_MAX = 10;

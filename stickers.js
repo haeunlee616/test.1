@@ -37,7 +37,7 @@ const OPTION_LINES = {
 const lineFor = (option) => OPTION_LINES[option] || null;
 
 // ---------- 설문5 '남긴 의미·영향' 옵션 ↔ 이미지 (6번의 '지금' 색을 입힘) ----------
-// 기본: 검정 잉크만 '지금' 색으로 (흰 테두리·하프톤·질감 유지).  box: 사진은 그대로, 사진 뒤 별 모양 상자에 색을 입힘.
+// 기본: '지금' 색을 원본 위에 50% 로 덧입힘 (흰 테두리·하프톤·질감 유지).  box: 사진은 그대로, 사진 뒤 별 모양 상자에 색을 입힘.
 const NOW_FILES = {
   experience: { src: 'assets/stickers/experience.png', plain: true },                           // 경험: 색을 입히지 않음 (검정 글자 + 흰 테두리 그대로)
   challenge: { src: STICKER_FILES.challenge },                                                  // 도전 (설문3 '도전' 과 같은 이미지)
@@ -51,6 +51,7 @@ const OPTION_NOW_STICKERS = {
   '동력': NOW_FILES.power,
 };
 const nowStickerFor = (option) => OPTION_NOW_STICKERS[option] || null;
+const NOW_TINT_STRENGTH = 0.5;   // 설문5 그림: '지금' 색을 원본 위에 50% 로 덧입힘 (검정 하프톤이 완전히 사라지지 않게, 흰 테두리는 그대로)
 
 // 설문5 옵션 → 결과지 가운데 프레임의 큰 사진. 몇 개를 골랐든 아래 목록 앞쪽 옵션이 하나라도 있으면 그 사진을 씀
 // (나중에 미드저니 이미지가 들어올 자리 — 지금은 '시작'이면 항상 이 사진으로 고정)
@@ -85,7 +86,7 @@ function stickerFor(option) {
 const parseHex = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
 
 // 이미지에 색 입히기: 밝기 0(검정) → hex, 밝기 255(흰색) → 흰색, 알파는 그대로. <canvas> 를 돌려줍니다.
-async function inkTint(src, hex) {
+async function inkTint(src, hex, strength = 1) {
   const img = await loadSticker(src);
   const canvas = document.createElement('canvas');
   canvas.width = img.naturalWidth;
@@ -96,10 +97,12 @@ async function inkTint(src, hex) {
   const frame = ctx.getImageData(0, 0, canvas.width, canvas.height);
   const px = frame.data;
   for (let p = 0; p < px.length; p += 4) {
-    const lum = px[p] / 255;                       // 회색조 이미지라 R 채널이 곧 밝기
-    px[p] = color[0] + (255 - color[0]) * lum;
-    px[p + 1] = color[1] + (255 - color[1]) * lum;
-    px[p + 2] = color[2] + (255 - color[2]) * lum;
+    const orig = px[p];                            // 회색조 이미지라 R 채널이 곧 밝기
+    const lum = orig / 255;
+    // 색을 입힌 값과 원본 사이를 strength 만큼 섞음 (1 = 완전히 입힘, 0.5 = 색을 반투명하게 덧입힌 느낌). 흰색은 어느 쪽이든 흰색
+    px[p] = orig + (color[0] + (255 - color[0]) * lum - orig) * strength;
+    px[p + 1] = orig + (color[1] + (255 - color[1]) * lum - orig) * strength;
+    px[p + 2] = orig + (color[2] + (255 - color[2]) * lum - orig) * strength;
   }
   ctx.putImageData(frame, 0, 0);
   return canvas;
@@ -140,7 +143,7 @@ async function tintNowSticker(option, hex) {
   const entry = nowStickerFor(option);
   if (!entry) return null;
   if (entry.plain) return plainSticker(entry.src);
-  return entry.box ? boxTint(entry, hex) : inkTint(entry.src, hex);
+  return entry.box ? boxTint(entry, hex) : inkTint(entry.src, hex, NOW_TINT_STRENGTH);
 }
 
 window.Stickers = {
