@@ -560,8 +560,12 @@ function goNext() {
     document.body.classList.add('survey-done');
     window.surveyAnswers = QUESTIONS.map((q, n) => ({ question: q.title.replace(/\n/g, ' '), answer: answers[n] }));
     console.log('survey answers', window.surveyAnswers);
-    // 설문이 끝나면 결과지를 띄움
-    setTimeout(() => { if (window.ResultSheet) window.ResultSheet.show(window.surveyAnswers); }, 900);
+    // 설문이 끝나면: 커서를 따라다니던 꼬리표들이 줄이 끊겨 떨어져 나가고, 마지막 한 개가 새 이름으로 바뀐 뒤 결과지가 나옴
+    const define = answers[QUESTIONS.length - 1] || {};
+    const colors = answers[QUESTIONS.length - 2] || {};
+    const showResult = () => { if (window.ResultSheet) window.ResultSheet.show(window.surveyAnswers); };
+    if (window.releaseTrail) window.releaseTrail({ word: define.word, color: colors.now }).then(() => setTimeout(showResult, 250));
+    else setTimeout(showResult, 900);
   }
 }
 nextBtn.addEventListener('click', goNext);

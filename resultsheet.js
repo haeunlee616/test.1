@@ -545,6 +545,7 @@
     const more = el('button', 'rp-more', guide);
     more.type = 'button';
     more.textContent = 'discover more';
+    more.addEventListener('click', () => { if (window.Archive) window.Archive.open(); });
     const note = el('p', 'rp-note', guide);
     const fit = () => {
       const u = Math.max(Math.min(window.innerWidth / 1440, window.innerHeight / 1024), 0.6);
@@ -699,7 +700,7 @@
     };
   }
 
-  window.ResultSheet = { show, layoutWord, SIZES, FRAME };
+  window.ResultSheet = { show, layoutWord, SIZES, FRAME, watchSwipe, stopWatching: () => { if (stopWatching) { stopWatching(); stopWatching = null; } } };
 
   // 확인용: 주소 끝에 ?result=example 을 붙이면 시안 예시 응답으로 결과지를 바로 띄움 (AI 대신 시안의 문장 사용)
   const speedParam = /[?&]rsspeed=([0-9.]+)/.exec(location.search);

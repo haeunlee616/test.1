@@ -1820,7 +1820,7 @@ html, body {
 .rs-divider { position: absolute; left: 524px; top: 957px; width: 2px; height: 413px; background: #000; }
 
 /* 결과 화면에서는 첫 화면의 'CLICK TO OPEN' 과 책 문구를 감춤 */
-.is-result .open, .is-result .caption { display: none; }
+.is-result .open, .is-result .caption, .is-archive .open, .is-archive .caption { display: none; }
 
 /* 머리 띠: 취소선이 쓱 그어지고 닉네임 점선이 그려짐 / 구분선이 위에서 아래로 그어짐 */
 .rs-strike, .rs-nick { transition: clip-path 0.65s cubic-bezier(0.6, 0, 0.2, 1); }
@@ -1835,3 +1835,53 @@ html, body {
 .rs-lens.is-on { display: block; }
 .rs-lens__inner { position: absolute; left: 0; top: 0; width: 1050px; height: 1407px; transform-origin: 0 0; }
 .rs-lens__inner .rs-face { position: absolute; inset: 0; }
+
+/* ---------- 아카이빙 1·2 ---------- */
+.ar-layer { position: fixed; inset: 0; z-index: 9; background: #fff; opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 0.8s ease; }
+.ar-layer.is-on { opacity: 1; visibility: visible; pointer-events: auto; }
+.ar-scroll { position: absolute; inset: 0; overflow-y: auto; scroll-snap-type: y mandatory; scrollbar-width: none; overscroll-behavior: contain; }
+.ar-scroll::-webkit-scrollbar { display: none; }
+.ar-screen { position: relative; height: 100vh; height: 100dvh; overflow: hidden; }
+.ar-screen--2 { scroll-snap-align: start; }
+.ar-screen--1 { background: #fff; }
+.ar-screen--2 { background: #1b1b1b; }
+.ar-canvas { position: absolute; left: 50%; top: 50%; width: 1440px; height: 1024px; transform: translate(-50%, -50%) scale(var(--ar-u, 1)); perspective: 1500px; }
+
+/* 아카이빙1: 깊이가 있는 3D 공간 — 결과지마다 앞뒤 거리가 다르고, 마우스에 시점이 움직이고, 스크롤하면 카메라가 앞으로 전진 */
+.ar-runway { position: relative; height: calc(var(--runway, 3) * 100vh); height: calc(var(--runway, 3) * 100dvh); scroll-snap-align: start; }
+.ar-runway > .ar-screen { position: sticky; top: 0; }
+.ar-canvas { perspective: 1500px; perspective-origin: 50% 50%; }
+.ar-scene { position: absolute; inset: 0; transform-style: preserve-3d; transform-origin: 720px 512px -500px; will-change: transform; }
+.ar-sheet { position: absolute; transform-style: preserve-3d; will-change: transform, opacity, filter; }
+.ar-sheet__bob { position: absolute; inset: 0; background: #fff; transform-style: preserve-3d; animation: ar-float var(--dur, 12s) ease-in-out var(--delay, 0s) infinite alternate; will-change: transform; }
+.ar-sheet__bob img { display: block; width: 100%; height: 100%; user-select: none; -webkit-user-drag: none; }
+@keyframes ar-float {
+  0%   { transform: translate3d(0, 0, 0) rotateX(0deg) rotateY(0deg) rotateZ(0deg); }
+  50%  { transform: translate3d(calc(var(--dx) * 0.5), calc(var(--dy) * 0.8), 0) rotateX(5deg) rotateY(-7deg) rotateZ(var(--rz)); }
+  100% { transform: translate3d(var(--dx), var(--dy), 0) rotateX(-5deg) rotateY(6deg) rotateZ(calc(var(--rz) * -1)); }
+}
+.ar-veil { position: absolute; left: 231px; top: 7px; width: 1000px; height: 1000px; border-radius: 50%; background: radial-gradient(circle closest-side, #fff 0%, rgba(255, 255, 255, 0.6) 100%); filter: blur(50px); pointer-events: none; }
+.ar-headline { position: absolute; left: 0; top: 396px; width: 1440px; margin: 0; text-align: center; font: 600 57px/1.0 "Pretendard", "Helvetica", sans-serif; letter-spacing: -0.045em; color: #2b2b2b; pointer-events: none; }
+.ar-scrollhint { position: absolute; left: 0; top: 540px; width: 1440px; display: flex; flex-direction: column; align-items: center; gap: 16px; font: 400 31px/1 "Helvetica", "Pretendard", sans-serif; letter-spacing: -0.04em; color: #1b1b1b; pointer-events: none; }
+.ar-scrollhint svg { animation: ar-bounce 1.6s ease-in-out infinite; }
+@keyframes ar-bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(7px); } }
+.ar-dim { position: absolute; inset: 0; background: #1b1b1b; opacity: 0; pointer-events: none; }
+
+/* 아카이빙2: 3D 책 — 오른쪽 쪽을 누르면 넘어가고 결과지가 한 장씩 나타남 */
+.bk-stage { position: absolute; inset: 0; perspective: 2600px; perspective-origin: 50% 35%; cursor: pointer; }
+.bk-book { position: absolute; width: 0; height: 552px; transform-style: preserve-3d; transform-origin: 0 276px; transform: rotateX(16deg); }
+.bk-cover { position: absolute; left: -450px; top: 14px; width: 900px; height: 590px; border-radius: 4px; background: #0a0a0a; transform: translateZ(-8px); box-shadow: 0 24px 40px rgba(0, 0, 0, 0.55); }
+.bk-edge { position: absolute; top: 0; width: 394px; height: 552px; background: #fff; border: 1px solid #222; box-sizing: border-box; }
+.bk-edge--l { left: -394px; transform: translate(calc(var(--i) * -4px), calc(var(--i) * 3px)) translateZ(calc(var(--i) * -1.2px)); }
+.bk-edge--r { left: 0; transform: translate(calc(var(--i) * 4px), calc(var(--i) * 3px)) translateZ(calc(var(--i) * -1.2px)); }
+.bk-leaf { position: absolute; left: 0; top: 0; width: 394px; height: 552px; transform-origin: 0 50%; transform-style: preserve-3d; transform: translateZ(calc(var(--z, 0) * 0.7px)) rotateY(0deg); transition: transform 1.25s cubic-bezier(0.55, 0, 0.25, 1); }
+.bk-leaf.is-flipped { transform: translateZ(calc(var(--z, 0) * 0.7px)) rotateY(-180deg); }
+.bk-leaf--left { left: -394px; transform: none; transition: none; }
+.bk-leaf--rightbase { background: #fff; transform: translateZ(-0.5px); transition: none; }
+.bk-face { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; overflow: hidden; background: #fff; backface-visibility: hidden; }
+.bk-face--back { transform: rotateY(180deg); }
+.bk-face::after { content: ""; position: absolute; inset: 0; pointer-events: none; }
+.bk-face--r::after { background: linear-gradient(to right, rgba(0, 0, 0, 0.24), rgba(0, 0, 0, 0) 16%); }
+.bk-face--l::after { background: linear-gradient(to left, rgba(0, 0, 0, 0.24), rgba(0, 0, 0, 0) 16%); }
+.bk-sheet { display: block; width: 100%; height: auto; user-select: none; -webkit-user-drag: none; }
+.bk-caption { position: absolute; left: 0; top: 885px; width: 1440px; margin: 0; text-align: center; font: 500 16px "Pretendard", sans-serif; letter-spacing: -0.04em; color: rgba(255, 255, 255, 0.5); }

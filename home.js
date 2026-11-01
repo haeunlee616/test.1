@@ -508,6 +508,104 @@ window.addEventListener('mousemove', (e) => {
   }
 });
 
+// 박스 하나를 화면에 그림 (위치·기울기·크기·투명도)
+function drawTrailBox(box) {
+  box.el.style.width = `${(box.wPx || TRAIL_BOX_W * unit)}px`;
+  box.el.style.transform = `translate3d(${box.x}px, ${box.y}px, 0) rotate(${box.rot || 0}rad) scale(${box.sx == null ? 1 : box.sx}, ${box.sy == null ? 1 : box.sy})`;
+  box.el.style.opacity = String(box.forceOp != null ? box.forceOp : box.op * appear * box.fade);
+}
+
+// ---------- 설문7이 끝나면: 줄이 끊겨 꼬리표들이 떨어져 나가고, 마지막 한 개만 새 이름으로 바뀜 ----------
+// window.releaseTrail({ word, color }) → 연출이 끝나면 resolve 되는 Promise
+let release = null;
+const GRAVITY = 2600;           // px/s²
+const BOUNCE = 0.42;            // 바닥에서 튕기는 정도
+function stepRelease(now, dt) {
+  const s = release;
+  const sec = dt / 1000;
+  const floorBase = innerHeight - document.querySelector('.bar').getBoundingClientRect().height;
+  let alive = 0;
+  s.boxes.forEach((b) => {
+    if (b.gone) return;
+    if (now < b.releaseAt) { alive++; return; }
+    if (!b.freed) {                                   // 줄이 끊기는 순간: 위로 한 번 튕겨 오르며 떨어지기 시작
+      b.freed = true;
+      b.vx = b.vx0 * 0.5 + (Math.random() - 0.5) * 260;
+      b.vy = -(260 + Math.random() * 260);
+      b.vr = (Math.random() - 0.5) * 6;
+      b.bounces = 0;
+      b.freedAt = now;
+      b.forceOp = Math.max(b.op, 0.9);
+    }
+    b.vy += GRAVITY * sec;
+    b.x += b.vx * sec;
+    b.y += b.vy * sec;
+    b.rot += b.vr * sec;
+    const h = (b.hPx || 35 * unit);
+    const floor = floorBase - h;
+    if (b.y > floor) {                                // 바닥에 닿아 튕김
+      b.y = floor;
+      if (Math.abs(b.vy) > 160) { b.vy = -b.vy * BOUNCE; b.vx *= 0.8; b.vr *= 0.6; b.bounces++; } else b.vy = 0;
+    }
+    if (b.vy === 0 && b.y >= floor - 0.5) {            // 바닥에 닿은 뒤엔 굴러서 화면 밖으로
+      b.vx += b.dir * 2200 * sec;
+      b.vr = b.vx / (b.wPx || TRAIL_BOX_W * unit) * 1.4;
+      b.vx *= 0.995;
+    }
+    drawTrailBox(b);
+    if (b.x < -400 || b.x > innerWidth + 400) { b.gone = true; b.el.style.display = 'none'; } else alive++;
+  });
+  if (!alive && !s.cleared) { s.cleared = true; s.onCleared(); }
+}
+
+window.releaseTrail = function ({ word, color } = {}) {
+  return new Promise((resolve) => {
+    if (!trailOn || !pointer || !trailStarted || release) { resolve(); return; }
+    const keep = trailBoxes[0];                       // 커서에 가장 가까운 한 개는 남음
+    const now = performance.now();
+    const boxes = trailBoxes.slice(1).map((b, i) => {
+      b.hPx = b.el.getBoundingClientRect().height;
+      b.wPx = b.el.getBoundingClientRect().width;
+      b.vx0 = (pointer.x - b.x) * 0.6;               // 지금 커서 쪽으로 달리던 기세
+      b.dir = b.x < innerWidth / 2 ? -1 : 1;           // 가까운 가장자리 쪽으로 굴러감
+      b.rot = 0;
+      b.releaseAt = now + 150 + i * 90;               // 한 개씩 차례로 끊김
+      return b;
+    });
+    const tween = (ms, fn) => new Promise((r) => {
+      const t0 = performance.now();
+      const step = (n) => { const t = Math.min(1, (n - t0) / ms); fn(t); if (t < 1) requestAnimationFrame(step); else r(); };
+      requestAnimationFrame(step);
+    });
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    const finishKeep = async () => {
+      await wait(250);
+      // 남은 한 개: 글자가 쓱 접혔다가 새 이름으로 바뀌며 '지금' 색으로 물들고 통 튀어 오름
+      keep.forceOp = 1;
+      await tween(140, (t) => { keep.sy = 1 - t; });
+      keep.el.textContent = word || '';
+      keep.el.className = `trail__word ${randomFrom(FONT_CLASSES)}`;
+      keep.el.style.background = color || '#e8ff8e';
+      keep.el.style.fontWeight = '600';
+      keep.el.style.padding = `0 ${14 * unit}px`;
+      keep.el.style.whiteSpace = 'nowrap';
+      keep.el.style.width = 'auto';
+      keep.wPx = Math.max(TRAIL_BOX_W * unit, keep.el.getBoundingClientRect().width);
+      await tween(260, (t) => { const e = 1 - Math.pow(1 - t, 3); keep.sy = e; keep.sx = 1 + 0.35 * Math.sin(t * Math.PI); });
+      keep.sx = 1;
+      await wait(1100);
+      // 새 이름이 가볍게 떠오르며 사라짐 → 결과 화면으로
+      await tween(520, (t) => { keep.y -= 1.2; keep.sx = keep.sy = 1 + 0.25 * t; keep.forceOp = 1 - t; });
+      keep.el.style.display = 'none';
+      trailOn = false;
+      release = null;
+      resolve();
+    };
+    release = { boxes, keep, cleared: false, onCleared: finishKeep };
+    setTimeout(() => { if (release && !release.cleared) { release.cleared = true; finishKeep(); } }, 4800);   // 혹시 화면 밖으로 안 나간 박스가 있어도 이어가기
+  });
+};
+
 let lastPointerForSpeed = null;
 function trailFrame(now) {
   const dt = Math.min(64, now - lastFrame);
@@ -531,6 +629,7 @@ function trailFrame(now) {
     const stretch = 1 + Math.min(TRAIL_STRETCH_MAX, speed / 60);
 
     trailBoxes.forEach((box, i) => {
+      if (box.freed) return;                       // 줄이 끊겨 떨어진 박스는 stepRelease 가 움직임
       // 이 박스는 커서가 delay 만큼 전에 있던 자리에서부터 경로를 따라 늘어섬 → 커서가 움직여도 뒤늦게 출발
       const delay = TRAIL_DELAY_FIRST_MS + (TRAIL_DELAY_LAST_MS - TRAIL_DELAY_FIRST_MS) * (i / (TRAIL_COUNT - 1));
       const head = headAt(now - delay);
@@ -550,11 +649,10 @@ function trailFrame(now) {
       box.x += (tx - box.x) * k;
       box.y += (ty - box.y) * k;
       box.fade = Math.min(1, box.fade + dt / SWAP_FADE_MS);
-      box.el.style.width = `${TRAIL_BOX_W * unit}px`;
-      box.el.style.transform = `translate3d(${box.x}px, ${box.y}px, 0)`;
-      box.el.style.opacity = String(box.op * appear * box.fade);
+      drawTrailBox(box);
     });
   }
+  if (release) stepRelease(now, dt);
   requestAnimationFrame(trailFrame);
 }
 requestAnimationFrame(trailFrame);
