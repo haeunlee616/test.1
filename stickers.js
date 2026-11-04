@@ -55,14 +55,35 @@ const LINE_FILES = {
   person: 'assets/stickers/person.png',
   fail: 'assets/stickers/fail.png',
   regret: 'assets/stickers/regret.png',     // 'Lingering Regret Feelings' 글씨 (받은 파일 그대로)
+  compare: 'assets/stickers/compare.png',   // 타인과의 비교 (저울)
+  hug1: 'assets/stickers/hug1.png',         // 주변의 기대 · 조직이나 집단의 인정 (둘 중 하나)
+  hug2: 'assets/stickers/hug2.png',
+  stairs: 'assets/stickers/stairs.png',     // 목표 도달률 · 경제적 성취 (계단)
+  eval1: 'assets/stickers/eval1.png',       // 타인의 평가 (둘 중 하나)
+  eval2: 'assets/stickers/eval2.png',
+  ownrule: 'assets/stickers/ownrule.png',           // 나만의 기준 'My Own Rule' 글씨 (받은 파일 그대로)
+  righttime: 'assets/stickers/righttime.png',       // 정해진 나이와 시기 'The Right Time??' 글씨 (받은 파일 그대로)
+  notexpected: 'assets/stickers/notexpected.png',   // 기대와의 불일치 'Not As Expected' 글씨 (받은 파일 그대로)
 };
 const OPTION_LINES = {
   '사회적 기준': LINE_FILES.puzzle,
   '자기 실망': LINE_FILES.person,
   '취업·합격 여부': LINE_FILES.fail,
   '후회와 미련': LINE_FILES.regret,
+  '타인과의 비교': LINE_FILES.compare,
+  '주변의 기대': [LINE_FILES.hug1, LINE_FILES.hug2],               // 값이 배열이면 그중 하나가 무작위로 나옴 (결과지에서 정함)
+  '조직이나 집단의 인정': [LINE_FILES.hug1, LINE_FILES.hug2],
+  '목표 도달률': LINE_FILES.stairs,
+  '경제적 성취': LINE_FILES.stairs,
+  '타인의 평가': [LINE_FILES.eval1, LINE_FILES.eval2],
+  '나만의 기준': LINE_FILES.ownrule,
+  '정해진 나이와 시기': LINE_FILES.righttime,
+  '기대와의 불일치': LINE_FILES.notexpected,
 };
-const lineFor = (option) => OPTION_LINES[option] || null;
+const lineFor = (option) => {
+  const v = OPTION_LINES[option];
+  return Array.isArray(v) ? v[Math.floor(Math.random() * v.length)] : (v || null);
+};
 
 // ---------- 설문5 '남긴 의미·영향' 옵션 ↔ 이미지 (6번의 '지금' 색을 입힘) ----------
 // 기본: '지금' 색을 원본 위에 50% 로 덧입힘 (흰 테두리·하프톤·질감 유지).  box: 사진은 그대로, 사진 뒤 별 모양 상자에 색을 입힘.

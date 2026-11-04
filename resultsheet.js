@@ -17,6 +17,7 @@
   const SIZES = {
     fail: 115, hollow: 100, challengeNow: 105, start: 70, pause: 93, puzzle: 230, person: 95,
     regret: 300, experience: 230, power: 108, straight: 130, giveup: 110, challengeThen: 130,
+    compare: 125, hug1: 105, hug2: 105, stairs: 105, eval1: 105, eval2: 95, ownrule: 170, righttime: 280, notexpected: 160,
     release: 80, hold: 85, alone: 80, together: 100, anxious: 90, hope: 90, tense: 100, fear: 95, cliff: 80, calm: 95,
   };
   const TILT_MAX = 5;                                    // 기울기: -5° ~ +5° 무작위
@@ -28,7 +29,9 @@
     tint: { '도전': 'challengeThen', '멈춤': 'pause', '기다림': 'pause', '망설임': 'pause', '직진': 'straight', '반복': 'straight', '포기': 'giveup', '허탈함': 'hollow', '후회': 'hollow', '슬픔': 'hollow',
       '놓음': 'release', '붙잡음': 'hold', '혼자': 'alone', '돌아섬': 'alone', '함께': 'together', '불안': 'anxious', '초조': 'anxious',
       '막막함': ['anxious', 'cliff'], '기대': 'hope', '설렘': 'hope', '긴장': 'tense', '답답함': 'tense', '두려움': ['fear', 'cliff'], '담담함': 'calm' },   // 배열 = 이미지가 둘: 고를 때마다 무작위
-    line: { '사회적 기준': 'puzzle', '자기 실망': 'person', '취업·합격 여부': 'fail', '후회와 미련': 'regret' },
+    line: { '사회적 기준': 'puzzle', '자기 실망': 'person', '취업·합격 여부': 'fail', '후회와 미련': 'regret',
+      '타인과의 비교': 'compare', '주변의 기대': ['hug1', 'hug2'], '조직이나 집단의 인정': ['hug1', 'hug2'], '목표 도달률': 'stairs', '경제적 성취': 'stairs',
+      '타인의 평가': ['eval1', 'eval2'], '나만의 기준': 'ownrule', '정해진 나이와 시기': 'righttime', '기대와의 불일치': 'notexpected' },   // 배열 = 이미지가 둘: 무작위
     now: { '경험': 'experience', '도전': 'challengeNow', '시작': 'start', '동력': 'power' },
   };
 
@@ -137,7 +140,16 @@
       const key = fresh[Math.floor(Math.random() * fresh.length)];
       add(key, 'tint', () => S.tint(o, colors.then || '#000000', tintOf(key)));
     });
-    (pick(3) || []).forEach((o) => { const key = STICKER_OF.line[o]; const src = S.lineForOption(o); if (key && src) add(key, 'line', async () => { const img = new Image(); img.src = src; await img.decode().catch(() => {}); return img; }); });
+    // 설문4: 이미지가 둘인 옵션은 아직 안 나온 이미지 중 무작위 (같은 그림이 두 번 나오지 않게)
+    const lineOpts = (pick(3) || []).filter((o) => STICKER_OF.line[o]).map((o) => ({ o, keys: [].concat(STICKER_OF.line[o]) }));
+    lineOpts.sort((a, b) => a.keys.length - b.keys.length);
+    lineOpts.forEach(({ keys }) => {
+      const fresh = keys.filter((k) => !seen.has(k));
+      if (!fresh.length) return;
+      const key = fresh[Math.floor(Math.random() * fresh.length)];
+      const src = S.lineFiles[key];
+      if (src) add(key, 'line', async () => { const img = new Image(); img.src = src; await img.decode().catch(() => {}); return img; });
+    });
     (pick(4) || []).forEach((o) => { const key = STICKER_OF.now[o]; if (key && S.nowForOption(o)) add(key, 'now', () => S.tintNow(o, colors.now || '#000000')); });
     return Promise.all(jobs.map(async ({ key, kind, make }) => {
       const node = await make();
