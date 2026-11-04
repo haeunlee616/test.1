@@ -18,6 +18,7 @@
     fail: 115, hollow: 100, challengeNow: 105, start: 70, pause: 93, puzzle: 230, person: 95,
     regret: 300, experience: 230, power: 108, straight: 130, giveup: 110, challengeThen: 130,
     compare: 125, hug1: 105, hug2: 105, stairs: 105, eval1: 105, eval2: 95, ownrule: 170, righttime: 280, notexpected: 160,
+    compass: 95, key1: 100, key2: 100, sprout1: 90, sprout2: 90, expand: 80, base1: 90, base2: 100, humble: 90,
     release: 80, hold: 85, alone: 80, together: 100, anxious: 90, hope: 90, tense: 100, fear: 95, cliff: 80, calm: 95,
   };
   const TILT_MAX = 5;                                    // 기울기: -5° ~ +5° 무작위
@@ -32,7 +33,10 @@
     line: { '사회적 기준': 'puzzle', '자기 실망': 'person', '취업·합격 여부': 'fail', '후회와 미련': 'regret',
       '타인과의 비교': 'compare', '주변의 기대': ['hug1', 'hug2'], '조직이나 집단의 인정': ['hug1', 'hug2'], '목표 도달률': 'stairs', '경제적 성취': 'stairs',
       '타인의 평가': ['eval1', 'eval2'], '나만의 기준': 'ownrule', '정해진 나이와 시기': 'righttime', '기대와의 불일치': 'notexpected' },   // 배열 = 이미지가 둘: 무작위
-    now: { '경험': 'experience', '도전': 'challengeNow', '시작': 'start', '동력': 'power' },
+    now: { '경험': 'experience', '도전': 'challengeNow', '시작': 'start', '계기': 'start', '기회': ['start', 'key1', 'key2'], '동력': 'power',
+      '방향': 'compass', '독립': 'compass', '관점': 'compass', '변화': ['key1', 'key2'], '용기': ['key1', 'key2'],
+      '성숙': ['sprout1', 'sprout2'], '성장': ['sprout1', 'sprout2'], '인내': ['sprout1', 'sprout2'],
+      '확장': 'expand', '발견': 'expand', '배움': ['expand', 'base2'], '토대': ['base1', 'base2'], '이해': ['base1', 'base2'], '인정': 'base1', '태도': 'humble', '겸손': 'humble' },   // 배열 = 이미지가 둘 이상: 무작위
   };
 
   const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -150,7 +154,16 @@
       const src = S.lineFiles[key];
       if (src) add(key, 'line', async () => { const img = new Image(); img.src = src; await img.decode().catch(() => {}); return img; });
     });
-    (pick(4) || []).forEach((o) => { const key = STICKER_OF.now[o]; if (key && S.nowForOption(o)) add(key, 'now', () => S.tintNow(o, colors.now || '#000000')); });
+    // 설문5: 이미지가 둘 이상인 옵션은 아직 안 나온 이미지 중 무작위 (같은 그림이 두 번 나오지 않게)
+    const nowEntry = (key) => S.nowFiles[key === 'challengeNow' ? 'challenge' : key];
+    const nowOpts = (pick(4) || []).filter((o) => STICKER_OF.now[o]).map((o) => ({ o, keys: [].concat(STICKER_OF.now[o]) }));
+    nowOpts.sort((a, b) => a.keys.length - b.keys.length);
+    nowOpts.forEach(({ o, keys }) => {
+      const fresh = keys.filter((k) => !seen.has(k));
+      if (!fresh.length) return;
+      const key = fresh[Math.floor(Math.random() * fresh.length)];
+      add(key, 'now', () => S.tintNow(o, colors.now || '#000000', nowEntry(key)));
+    });
     return Promise.all(jobs.map(async ({ key, kind, make }) => {
       const node = await make();
       const w = SIZES[key];

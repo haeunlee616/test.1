@@ -92,14 +92,34 @@ const NOW_FILES = {
   challenge: { src: STICKER_FILES.challenge },                                                  // 도전 (설문3 '도전' 과 같은 이미지)
   start: { src: 'assets/stickers/start.png' },                                                  // 시작
   power: { src: 'assets/stickers/power.webp', box: 'assets/stickers/power-box.png' },           // 동력: 별 상자 색
+  compass: { src: 'assets/stickers/compass.png' },       // 방향 · 독립 · 관점
+  key1: { src: 'assets/stickers/key1.png' },             // 변화 · 기회 · 용기 (둘 중 하나)
+  key2: { src: 'assets/stickers/key2.png' },
+  sprout1: { src: 'assets/stickers/sprout1.png' },       // 성숙 · 성장 · 인내 (둘 중 하나)
+  sprout2: { src: 'assets/stickers/sprout2.png' },
+  expand: { src: 'assets/stickers/expand.png' },         // 확장 · 배움 · 발견
+  base1: { src: 'assets/stickers/base1.png' },           // 토대 · 인정 · 이해
+  base2: { src: 'assets/stickers/base2.png' },           // 토대 · 배움 · 이해
+  humble: { src: 'assets/stickers/humble.png' },         // 태도 · 겸손
 };
 const OPTION_NOW_STICKERS = {
   '경험': NOW_FILES.experience,
   '도전': NOW_FILES.challenge,
   '시작': NOW_FILES.start,
+  '계기': NOW_FILES.start,     // 계기·기회는 시작과 같은 이미지
+  '기회': [NOW_FILES.start, NOW_FILES.key1, NOW_FILES.key2],   // 값이 배열이면 그중 하나가 무작위로 나옴 (결과지에서 정함)
   '동력': NOW_FILES.power,
+  '방향': NOW_FILES.compass, '독립': NOW_FILES.compass, '관점': NOW_FILES.compass,
+  '변화': [NOW_FILES.key1, NOW_FILES.key2], '용기': [NOW_FILES.key1, NOW_FILES.key2],
+  '성숙': [NOW_FILES.sprout1, NOW_FILES.sprout2], '성장': [NOW_FILES.sprout1, NOW_FILES.sprout2], '인내': [NOW_FILES.sprout1, NOW_FILES.sprout2],
+  '확장': NOW_FILES.expand, '발견': NOW_FILES.expand, '배움': [NOW_FILES.expand, NOW_FILES.base2],
+  '태도': NOW_FILES.humble, '겸손': NOW_FILES.humble,
+  '토대': [NOW_FILES.base1, NOW_FILES.base2], '이해': [NOW_FILES.base1, NOW_FILES.base2], '인정': NOW_FILES.base1,
 };
-const nowStickerFor = (option) => OPTION_NOW_STICKERS[option] || null;
+const nowStickerFor = (option) => {
+  const v = OPTION_NOW_STICKERS[option];
+  return Array.isArray(v) ? v[Math.floor(Math.random() * v.length)] : (v || null);
+};
 const NOW_TINT_STRENGTH = 0.5;   // 설문5 그림: '지금' 색을 원본 위에 50% 로 덧입힘 (검정 하프톤이 완전히 사라지지 않게, 흰 테두리는 그대로)
 
 // 설문5 옵션 → 결과지 가운데 프레임의 큰 사진. 몇 개를 골랐든 아래 목록 앞쪽 옵션이 하나라도 있으면 그 사진을 씀
@@ -194,8 +214,8 @@ async function plainSticker(src) {
   return canvas;
 }
 // 설문5 이미지 + 6번 '지금' 색 ('경험'은 사용자가 고른 색과 상관없이 원본 그대로)
-async function tintNowSticker(option, hex) {
-  const entry = nowStickerFor(option);
+async function tintNowSticker(option, hex, chosen) {
+  const entry = chosen || nowStickerFor(option);
   if (!entry) return null;
   if (entry.plain) return plainSticker(entry.src);
   return entry.box ? boxTint(entry, hex) : inkTint(entry.src, hex, NOW_TINT_STRENGTH);
