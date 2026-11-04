@@ -122,16 +122,58 @@ const nowStickerFor = (option) => {
 };
 const NOW_TINT_STRENGTH = 0.5;   // 설문5 그림: '지금' 색을 원본 위에 50% 로 덧입힘 (검정 하프톤이 완전히 사라지지 않게, 흰 테두리는 그대로)
 
-// 설문5 옵션 → 결과지 가운데 프레임의 큰 사진. 몇 개를 골랐든 아래 목록 앞쪽 옵션이 하나라도 있으면 그 사진을 씀
-// (나중에 미드저니 이미지가 들어올 자리 — 지금은 '시작'이면 항상 이 사진으로 고정)
+// 설문5 옵션 → 결과지 가운데 프레임의 큰 사진.
+// 고른 옵션이 options 에 하나라도 들어 있는 항목의 사진이 모두 후보가 되고, 그 후보 중 하나가 무작위로 나옴
+// (한 옵션이 여러 항목에 들어 있으면 그 항목들의 사진이 전부 후보 — 예: '시작' = start + grass1 + grass2)
 const HERO_IMAGES = [
-  { option: '시작', src: 'assets/hero/start.jpg' },
+  { options: ['시작', '독립', '성장', '변화'], src: 'assets/hero/start.jpg' },
+  { options: ['겸손', '토대', '인내', '이해'], src: 'assets/hero/humble.jpg' },
+  { options: ['시작', '독립', '경험', '유연', '태도', '수용'], src: 'assets/hero/grass1.jpg' },
+  { options: ['시작', '독립', '경험', '유연', '태도', '수용'], src: 'assets/hero/grass2.jpg' },
+  { options: ['시작', '계기', '성장', '도전', '발견', '동력', '방향', '관점'], src: 'assets/hero/run.jpg' },
+  { options: ['용기', '확장', '기회', '계기', '변화', '태도', '동력'], src: 'assets/hero/sea1.jpg' },
+  { options: ['용기', '확장', '기회', '계기', '변화', '태도', '동력'], src: 'assets/hero/sea2.jpg' },
+  { options: ['성숙', '인정', '배움', '기회', '용기', '관점', '계기'], src: 'assets/hero/door.jpg' },
+  { options: ['성숙', '인정', '배움', '이해', '태도', '경험'], src: 'assets/hero/hands.jpg' },
+  { options: ['변화', '기회', '용기', '방향', '경험'], src: 'assets/hero/rain1.jpg' },
+  { options: ['변화', '기회', '용기', '방향', '경험'], src: 'assets/hero/rain2.jpg' },
+  { options: ['시작', '확장', '성숙', '인정', '도전', '변화', '태도', '동력', '용기', '방향', '관점'], src: 'assets/hero/shoe1.jpg' },
+  { options: ['시작', '확장', '성숙', '인정', '도전', '변화', '태도', '동력', '용기', '방향', '관점'], src: 'assets/hero/shoe2.jpg' },
+  { options: ['계기', '시작', '확장', '독립', '경험', '유연', '성장', '배움', '이해', '태도', '동력', '기회', '방향'], src: 'assets/hero/play1.jpg' },
+  { options: ['계기', '시작', '확장', '독립', '경험', '유연', '성장', '배움', '이해', '태도', '동력', '기회', '방향'], src: 'assets/hero/play2.jpg' },
+  { options: ['계기', '시작', '확장', '독립', '경험', '유연', '성장', '배움', '이해', '태도', '동력', '기회', '방향'], src: 'assets/hero/play3.jpg' },
+  { options: ['계기', '시작', '확장', '독립', '경험', '유연', '성장', '배움', '이해', '태도', '동력', '기회', '방향'], src: 'assets/hero/play4.jpg' },
+  { options: ['계기', '시작', '확장', '독립', '경험', '유연', '성장', '배움', '이해', '태도', '동력', '기회', '방향'], src: 'assets/hero/play5.jpg' },
 ];
-const HERO_FALLBACK = 'assets/hero/start.jpg';    // 임시: 해당하는 옵션이 없어도 같은 사진을 계속 씀 (미드저니 이미지가 준비되면 null 로 바꿔 구분)
+const HERO_FALLBACK = 'assets/hero/start.jpg';    // 옵션을 하나도 고르지 않았을 때만 쓰는 사진
+// 옵션 하나에 연결된 사진 후보 전부
+const heroOptionImages = (option) => HERO_IMAGES.filter((h) => h.options.includes(option));
+// 고른 옵션들에 연결된 사진 후보 전부 (겹치는 건 한 번만)
+const heroChoices = (selected) => [...new Set((selected || []).flatMap((o) => heroOptionImages(o).map((h) => h.src)))];
+
+// ----- 한 사진만 자주 나오지 않게 균형 맞추기 -----
+// 고른 옵션들에 연결된 사진을 한 풀에 모으고(겹치는 사진은 한 번만) 풀 안에서 같은 확률로 하나를 뽑음.
+// (옵션별·사진별로 가중치를 따로 주는 방법도 시험했지만, 이 방식이 사진마다 나오는 비율이 가장 고르고 한 사진이 몰리는 정도도 가장 낮았음)
+// 여기에 이 기기에서 최근에 나온 사진은 확률을 낮추고, 바로 직전에 나온 사진은 다른 후보가 있으면 제외
+const HERO_RECENT_KEY = 'heroRecent';
+const HERO_RECENT_MAX = 8;
+const readRecent = () => { try { const v = JSON.parse(localStorage.getItem(HERO_RECENT_KEY) || '[]'); return Array.isArray(v) ? v : []; } catch (e) { return []; } };
+const noteHero = (src) => {                      // 결과지에 실제로 쓴 사진을 기록 (resultsheet.js 가 부름)
+  try { localStorage.setItem(HERO_RECENT_KEY, JSON.stringify([...readRecent(), src].slice(-HERO_RECENT_MAX))); } catch (e) { /* 저장소를 못 써도 무작위는 그대로 */ }
+};
+function pickWeighted(items, weightOf) {
+  const w = items.map(weightOf);
+  let r = Math.random() * w.reduce((a, b) => a + b, 0);
+  for (let i = 0; i < items.length; i++) { r -= w[i]; if (r < 0) return items[i]; }
+  return items[items.length - 1];
+}
 const heroFor = (selected) => {
-  const picked = new Set(selected || []);
-  const hit = HERO_IMAGES.find((h) => picked.has(h.option));
-  return hit ? hit.src : HERO_FALLBACK;
+  const pool = heroChoices(selected);
+  if (!pool.length) return HERO_FALLBACK;
+  const recent = readRecent();
+  const last = recent[recent.length - 1];
+  const cands = pool.length > 1 && pool.some((src) => src !== last) ? pool.filter((src) => src !== last) : pool;
+  return pickWeighted(cands, (src) => 1 / (1 + 2 * recent.filter((r) => r === src).length));
 };
 
 const stickerImages = {};
@@ -224,6 +266,6 @@ async function tintNowSticker(option, hex, chosen) {
 window.Stickers = {
   files: STICKER_FILES, byOption: OPTION_STICKERS, forOption: stickerFor, choices: stickerChoices, tint: tintSticker,   // 설문3: 색을 입히는 이미지
   lineFiles: LINE_FILES, lineByOption: OPTION_LINES, lineForOption: lineFor,                    // 설문4: 검정 그대로 쓰는 이미지
-  heroFor, heroImages: HERO_IMAGES,                                                               // 설문5: 가운데 프레임의 큰 사진
+  heroFor, heroChoices, noteHero, heroImages: HERO_IMAGES,                                                               // 설문5: 가운데 프레임의 큰 사진
   nowFiles: NOW_FILES, nowByOption: OPTION_NOW_STICKERS, nowForOption: nowStickerFor, tintNow: tintNowSticker,   // 설문5: '지금' 색을 입히는 이미지
 };

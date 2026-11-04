@@ -327,6 +327,7 @@
   async function build(resp) {
     const data = window.Result.fromSurvey(resp);
     const colors = (typeof resp[5] === 'object' && resp[5] && 'answer' in resp[5] ? resp[5].answer : resp[5]) || {};
+    if (data.hero && window.Stickers && window.Stickers.noteHero) window.Stickers.noteHero(data.hero);   // 최근에 쓴 배경 사진 기록 (같은 사진이 자주 나오지 않게)
     const ctx = { color: data.frameColor, hero: data.hero };
     const root = el('div', 'rs-sheet');
     const card = el('div', 'rs-card', root);
