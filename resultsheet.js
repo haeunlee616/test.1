@@ -132,38 +132,39 @@
     const pick = (n) => { const it = resp[n]; return it && typeof it === 'object' && !Array.isArray(it) && 'answer' in it ? it.answer : it; };
     const S = window.Stickers;
     const jobs = [];
-    const seen = new Set();
-    const add = (key, kind, make) => { if (seen.has(key)) return; seen.add(key); jobs.push({ key, kind, make }); };
-    // 설문3: 이미지가 하나뿐인 옵션부터 정하고, 이미지가 둘인 옵션은 아직 안 나온 이미지 중에서 무작위로 고름 (같은 그림이 두 번 나오지 않게)
+    const add = (key, kind, make) => jobs.push({ key, kind, make });
+    // 고른 옵션마다 그림 하나. 옵션 하나에 이미지가 여럿이면 그중 무작위 하나이고, 같은 이미지는 두 번 쓰지 않음:
+    // 이미 쓴 이미지를 뺀 나머지 중에서 고르고, 남은 이미지가 없으면(그 옵션 이미지가 전부 이미 나온 것이면) 그 옵션은 따로 내지 않음.
+    // 가능한 한 많은 옵션이 서로 다른 그림을 얻도록 짝짓기(이미지가 적은 옵션부터, 필요하면 앞서 정한 옵션의 이미지를 다른 것으로 바꿔줌)
+    const assign = (list) => {
+      const owner = new Map();                                          // 이미지 → 옵션 번호
+      const order = list.map((_, i) => i).sort((x, y) => list[x].keys.length - list[y].keys.length);
+      const keysOf = list.map(({ keys }) => keys.map((k) => [Math.random(), k]).sort((x, y) => x[0] - y[0]).map((e) => e[1]));   // 무작위 순서
+      const take = (i, visited) => {
+        for (const k of keysOf[i]) {
+          if (visited.has(k)) continue;
+          visited.add(k);
+          if (!owner.has(k) || take(owner.get(k), visited)) { owner.set(k, i); return true; }
+        }
+        return false;
+      };
+      order.forEach((i) => take(i, new Set()));
+      return [...owner].map(([key, i]) => ({ o: list[i].o, key }));
+    };
+    // 설문3
     const tintOf = (key) => S.files[key === 'challengeThen' ? 'challenge' : key];
-    const opts = (pick(2) || []).filter((o) => STICKER_OF.tint[o]).map((o) => ({ o, keys: [].concat(STICKER_OF.tint[o]) }));
-    opts.sort((a, b) => a.keys.length - b.keys.length);
-    opts.forEach(({ o, keys }) => {
-      const fresh = keys.filter((k) => !seen.has(k));
-      if (!fresh.length) return;
-      const key = fresh[Math.floor(Math.random() * fresh.length)];
-      add(key, 'tint', () => S.tint(o, colors.then || '#000000', tintOf(key)));
-    });
-    // 설문4: 이미지가 둘인 옵션은 아직 안 나온 이미지 중 무작위 (같은 그림이 두 번 나오지 않게)
-    const lineOpts = (pick(3) || []).filter((o) => STICKER_OF.line[o]).map((o) => ({ o, keys: [].concat(STICKER_OF.line[o]) }));
-    lineOpts.sort((a, b) => a.keys.length - b.keys.length);
-    lineOpts.forEach(({ keys }) => {
-      const fresh = keys.filter((k) => !seen.has(k));
-      if (!fresh.length) return;
-      const key = fresh[Math.floor(Math.random() * fresh.length)];
-      const src = S.lineFiles[key];
-      if (src) add(key, 'line', async () => { const img = new Image(); img.src = src; await img.decode().catch(() => {}); return img; });
-    });
-    // 설문5: 이미지가 둘 이상인 옵션은 아직 안 나온 이미지 중 무작위 (같은 그림이 두 번 나오지 않게)
+    assign((pick(2) || []).filter((o) => STICKER_OF.tint[o]).map((o) => ({ o, keys: [].concat(STICKER_OF.tint[o]) })))
+      .forEach(({ o, key }) => add(key, 'tint', () => S.tint(o, colors.then || '#000000', tintOf(key))));
+    // 설문4
+    assign((pick(3) || []).filter((o) => STICKER_OF.line[o]).map((o) => ({ o, keys: [].concat(STICKER_OF.line[o]) })))
+      .forEach(({ key }) => {
+        const src = S.lineFiles[key];
+        if (src) add(key, 'line', async () => { const img = new Image(); img.src = src; await img.decode().catch(() => {}); return img; });
+      });
+    // 설문5
     const nowEntry = (key) => S.nowFiles[key === 'challengeNow' ? 'challenge' : key];
-    const nowOpts = (pick(4) || []).filter((o) => STICKER_OF.now[o]).map((o) => ({ o, keys: [].concat(STICKER_OF.now[o]) }));
-    nowOpts.sort((a, b) => a.keys.length - b.keys.length);
-    nowOpts.forEach(({ o, keys }) => {
-      const fresh = keys.filter((k) => !seen.has(k));
-      if (!fresh.length) return;
-      const key = fresh[Math.floor(Math.random() * fresh.length)];
-      add(key, 'now', () => S.tintNow(o, colors.now || '#000000', nowEntry(key)));
-    });
+    assign((pick(4) || []).filter((o) => STICKER_OF.now[o]).map((o) => ({ o, keys: [].concat(STICKER_OF.now[o]) })))
+      .forEach(({ o, key }) => add(key, 'now', () => S.tintNow(o, colors.now || '#000000', nowEntry(key))));
     return Promise.all(jobs.map(async ({ key, kind, make }) => {
       const node = await make();
       const w = SIZES[key];
