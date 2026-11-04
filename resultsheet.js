@@ -631,7 +631,7 @@
 
     // 1) 가운데 박스: 필름이 현상되듯 사진 → 종이를 덮고 글자를 점선으로 오려내 떨어뜨림 → 설문2 문장이 툭툭 붙음 → 나머지 그림이 스톱모션으로 하나씩
     front.photo?.classList.add('is-in');
-    await sleep(1900);
+    await sleep(1300);
     wordSvg?.classList.add('is-in');
     await sleep(1200);
     if (wordSvg) await cutOutWord(wordSvg);

@@ -649,6 +649,7 @@ window.dustDeco = dustDeco;
 function goNext() {
   if (wiping) return;
   if (nextBtn.disabled || finished) return;
+  if (qi === 4 && window.Stickers && window.Stickers.preloadHero) window.Stickers.preloadHero(answers[4]);   // 설문5 를 마치면 결과지 배경 사진을 미리 받아 둠
   if (qi < QUESTIONS.length - 1) {
     if (QUESTIONS[qi + 1].bg === 'white' && QUESTIONS[qi].bg !== 'white') limeWipe(qi + 1);
     else showQuestion(qi + 1);

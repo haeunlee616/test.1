@@ -1790,7 +1790,7 @@ html, body {
 .rs-step.rs-wipe { opacity: 1; clip-path: inset(0 100% 0 0); transition: clip-path 1.1s cubic-bezier(0.6, 0, 0.2, 1); }
 .rs-step.rs-wipe.is-in { clip-path: inset(0 0 0 0); }
 .rs-step.rs-pop { transition: none; }
-.rs-photo { position: absolute; inset: 0; background-size: cover; background-position: center; filter: brightness(0.25) contrast(1.5) saturate(0) blur(10px); transition: opacity 0.9s ease, filter 1.9s ease; }
+.rs-photo { position: absolute; inset: 0; background-size: cover; background-position: center; filter: brightness(0.25) contrast(1.5) saturate(0) blur(10px); transition: opacity 0.6s ease, filter 1.2s ease; }
 .rs-photo.is-in { filter: none; }                          /* 필름이 현상되듯 어둡고 흐릿하다가 선명해짐 */
 .rs-ghost { visibility: hidden; }
 .rs-row__value.is-typing .rs-typed::after { content: ""; display: inline-block; width: 2px; height: 0.9em; margin-left: 1px; vertical-align: -0.1em; background: #000; }
@@ -1897,6 +1897,11 @@ html, body {
 .bk-face--r::after { background: linear-gradient(to right, rgba(0, 0, 0, 0.24), rgba(0, 0, 0, 0) 16%); }
 .bk-face--l::after { background: linear-gradient(to left, rgba(0, 0, 0, 0.24), rgba(0, 0, 0, 0) 16%); }
 .bk-sheet { display: block; width: 100%; height: 100%; object-fit: fill; user-select: none; -webkit-user-drag: none; }
+/* 결과지 가운데 네모칸(시안 1050×1407 안의 x40·y268·970×654)만 덮는 칸: 뒷면 그림의 같은 자리를 보여 줌 */
+.bk-frame { position: absolute; left: 3.8095%; top: 19.0477%; width: 92.381%; height: 46.4818%; background-repeat: no-repeat; background-size: 108.2474% 215.1376%; background-position: 50% 35.5912%; opacity: 0; transition: opacity 0.3s ease; pointer-events: none; }
+.bk-frame.is-on { opacity: 1; }
+.bk-frame-host { position: absolute; left: -394px; top: 0; width: 394px; height: 528px; transform: translateZ(2.9px); pointer-events: none; }
+.bk-frame-host .bk-frame { z-index: 1; }
 .bk-caption { position: absolute; left: 0; top: 885px; width: 1440px; margin: 0; text-align: center; font: 500 16px "Pretendard", sans-serif; letter-spacing: -0.04em; color: rgba(255, 255, 255, 0.5); }
 
 /* 책이 펼쳐진 직후 떠오르는 종이 먼지 */

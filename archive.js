@@ -323,7 +323,9 @@
   // 쪽 번호 n 은 sheets[n] (0 = 최신). 0번 쪽은 촤라락 넘어온 마지막 장의 뒷면이 보여 주고, 1번 쪽부터 이 장들이 보여 줌
   function makeLeaves() {
     (layer.leaves || []).forEach((l) => l.remove());
+    if (layer.p0host) layer.p0host.remove();
     layer.pageImgs = new Map();
+    layer.pageFrames = new Map();                       // 쪽 번호 → 결과지 네모칸 위에 덮는 칸 (뒷면 그림이 여기에만 보임)
     layer.leaves = [];
     const count = Math.max(1, Math.ceil((sheets.length - 1) / 2));
     const page = (parent, cls, n) => {
@@ -332,8 +334,12 @@
         const img = el('img', 'bk-sheet', f);
         img.alt = ''; img.draggable = false;
         layer.pageImgs.set(n, img);
+        layer.pageFrames.set(n, el('div', 'bk-frame', f));
       }
     };
+    // 0번 쪽은 촤라락 넘어온 마지막 장이 보여 주므로, 그 위(왼쪽 쪽 자리)에 네모칸 덮개를 따로 둠
+    layer.p0host = el('div', 'bk-frame-host', layer.book);
+    layer.pageFrames.set(0, el('div', 'bk-frame', layer.p0host));
     for (let j = 0; j < count; j++) {
       const leaf = el('div', 'bk-leaf');
       layer.book.insertBefore(leaf, layer.coverBoard);
@@ -342,7 +348,7 @@
       layer.leaves.push(leaf);
     }
   }
-  const pageSrc = (n) => { const sh = sheets[n]; return sh ? (sh.showBack ? sh.back : sh.front) : ''; };
+  const pageSrc = (n) => { const sh = sheets[n]; return sh ? sh.front : ''; };            // 쪽 전체는 늘 앞면 그림 (뒷면은 네모칸에만 덮어 보임)
   function setFanBack(src) {
     const f = layer.fans[FAN_COUNT - 1];
     f.dataset.back = src;
@@ -364,17 +370,21 @@
     setSpread(0);
   }
   const preload = (src) => new Promise((resolve) => { const im = new Image(); im.onload = im.onerror = resolve; im.src = src; });
-  // 쪽을 누르면 그 결과지의 앞면 ↔ 뒷면이 번갈아 보임
+  // 쪽을 누르면 그 결과지의 가운데 네모칸 안의 그림만 앞면 ↔ 뒷면으로 번갈아 바뀜 (머리띠·표 등 나머지는 그대로)
   async function togglePage(n) {
     const sh = sheets[n];
-    if (!sh || sh.flipping) return;
+    const frame = layer.pageFrames.get(n);
+    if (!sh || !frame || sh.flipping) return;
     sh.flipping = true;
-    await preload(sh.showBack ? sh.front : sh.back);
-    const target = n === 0 ? layer.fans[FAN_COUNT - 1] : layer.pageImgs.get(n);
-    if (target && target.animate) target.animate([{ opacity: 1 }, { opacity: 0.2, offset: 0.45 }, { opacity: 1 }], { duration: 380, easing: 'ease-in-out' });
-    await sleep(170);
+    if (!sh.showBack) {
+      await preload(sh.back);                                       // 다 받은 뒤에 보여 줌 (깜빡임 방지)
+      frame.style.backgroundImage = `url('${sh.back}')`;
+      frame.classList.add('is-on');
+    } else {
+      frame.classList.remove('is-on');
+    }
     sh.showBack = !sh.showBack;
-    if (n === 0) setFanBack(pageSrc(0)); else { const img = layer.pageImgs.get(n); if (img) img.src = pageSrc(n); }
+    await sleep(320);
     sh.flipping = false;
   }
 

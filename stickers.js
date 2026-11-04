@@ -160,6 +160,7 @@ const HERO_RECENT_MAX = 8;
 const readRecent = () => { try { const v = JSON.parse(localStorage.getItem(HERO_RECENT_KEY) || '[]'); return Array.isArray(v) ? v : []; } catch (e) { return []; } };
 const noteHero = (src) => {                      // 결과지에 실제로 쓴 사진을 기록 (resultsheet.js 가 부름)
   try { localStorage.setItem(HERO_RECENT_KEY, JSON.stringify([...readRecent(), src].slice(-HERO_RECENT_MAX))); } catch (e) { /* 저장소를 못 써도 무작위는 그대로 */ }
+  heroMemo = null; heroConsumed = true;           // 이 참여자의 사진은 다 썼음 → 다음 참여자는 새로 뽑음
 };
 function pickWeighted(items, weightOf) {
   const w = items.map(weightOf);
@@ -167,13 +168,35 @@ function pickWeighted(items, weightOf) {
   for (let i = 0; i < items.length; i++) { r -= w[i]; if (r < 0) return items[i]; }
   return items[items.length - 1];
 }
-const heroFor = (selected) => {
+const chooseHero = (selected) => {
   const pool = heroChoices(selected);
   if (!pool.length) return HERO_FALLBACK;
   const recent = readRecent();
   const last = recent[recent.length - 1];
   const cands = pool.length > 1 && pool.some((src) => src !== last) ? pool.filter((src) => src !== last) : pool;
   return pickWeighted(cands, (src) => 1 / (1 + 2 * recent.filter((r) => r === src).length));
+};
+// 설문5 를 마치는 순간 사진을 미리 정해 두고 내려받아 둠 → 결과지가 나올 때 이미 받아져 있어 바로 보임.
+// 같은 선택이면 결과지가 쓸 사진도 같은 것 (결과지가 사진을 쓴 뒤에는 기억을 비우고, 다음 참여자가 설문5 를 마칠 때까지 새로 기억하지 않음)
+let heroMemo = null;
+let heroConsumed = false;
+const heroFor = (selected) => {
+  const key = (selected || []).join('|');
+  if (heroMemo && heroMemo.key === key) return heroMemo.src;
+  const src = chooseHero(selected);
+  if (!heroConsumed) heroMemo = { key, src };
+  return src;
+};
+const heroLoaded = [];
+const preloadHero = (selected) => {
+  heroConsumed = false;
+  const src = heroFor(selected);
+  const img = new Image();
+  img.src = src;
+  if (img.decode) img.decode().catch(() => {});
+  heroLoaded.push(img);                          // 참조를 잡아 두어 내려받은 그림이 버려지지 않게
+  if (heroLoaded.length > 3) heroLoaded.shift();
+  return src;
 };
 
 const stickerImages = {};
@@ -266,6 +289,6 @@ async function tintNowSticker(option, hex, chosen) {
 window.Stickers = {
   files: STICKER_FILES, byOption: OPTION_STICKERS, forOption: stickerFor, choices: stickerChoices, tint: tintSticker,   // 설문3: 색을 입히는 이미지
   lineFiles: LINE_FILES, lineByOption: OPTION_LINES, lineForOption: lineFor,                    // 설문4: 검정 그대로 쓰는 이미지
-  heroFor, heroChoices, noteHero, heroImages: HERO_IMAGES,                                                               // 설문5: 가운데 프레임의 큰 사진
+  heroFor, preloadHero, heroChoices, noteHero, heroImages: HERO_IMAGES,                                                               // 설문5: 가운데 프레임의 큰 사진
   nowFiles: NOW_FILES, nowByOption: OPTION_NOW_STICKERS, nowForOption: nowStickerFor, tintNow: tintNowSticker,   // 설문5: '지금' 색을 입히는 이미지
 };
