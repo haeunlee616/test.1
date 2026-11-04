@@ -17,6 +17,7 @@
   const SIZES = {
     fail: 115, hollow: 100, challengeNow: 105, start: 70, pause: 93, puzzle: 230, person: 95,
     regret: 300, experience: 230, power: 108, straight: 130, giveup: 110, challengeThen: 130,
+    release: 80, hold: 85, alone: 80, together: 100, anxious: 90, hope: 90, tense: 100, fear: 95, cliff: 80, calm: 95,
   };
   const TILT_MAX = 5;                                    // 기울기: -5° ~ +5° 무작위
   const ZONE = { left: [0.02, 0.52], right: [0.48, 0.98] };   // 그림 가운데가 놓일 가로 범위(칸 너비 비율): 설문3·4 는 왼쪽, 설문5 는 오른쪽 (겹치는 구간은 있음)
@@ -24,7 +25,9 @@
   const MAX_STICKER_OVERLAP = 0.06;                      // 그림끼리 겹쳐도 되는 비율
   // 설문 응답 → 보여줄 그림. kind: tint(설문3·당시색) / line(설문4·검정 그대로) / now(설문5·지금색)
   const STICKER_OF = {
-    tint: { '도전': 'challengeThen', '멈춤': 'pause', '기다림': 'pause', '망설임': 'pause', '직진': 'straight', '포기': 'giveup', '허탈함': 'hollow' },
+    tint: { '도전': 'challengeThen', '멈춤': 'pause', '기다림': 'pause', '망설임': 'pause', '직진': 'straight', '반복': 'straight', '포기': 'giveup', '허탈함': 'hollow', '후회': 'hollow', '슬픔': 'hollow',
+      '놓음': 'release', '붙잡음': 'hold', '혼자': 'alone', '돌아섬': 'alone', '함께': 'together', '불안': 'anxious', '초조': 'anxious',
+      '막막함': ['anxious', 'cliff'], '기대': 'hope', '설렘': 'hope', '긴장': 'tense', '답답함': 'tense', '두려움': ['fear', 'cliff'], '담담함': 'calm' },   // 배열 = 이미지가 둘: 고를 때마다 무작위
     line: { '사회적 기준': 'puzzle', '자기 실망': 'person', '취업·합격 여부': 'fail', '후회와 미련': 'regret' },
     now: { '경험': 'experience', '도전': 'challengeNow', '시작': 'start', '동력': 'power' },
   };
@@ -124,7 +127,16 @@
     const jobs = [];
     const seen = new Set();
     const add = (key, kind, make) => { if (seen.has(key)) return; seen.add(key); jobs.push({ key, kind, make }); };
-    (pick(2) || []).forEach((o) => { const key = STICKER_OF.tint[o]; if (key && S.forOption(o)) add(key, 'tint', () => S.tint(o, colors.then || '#000000')); });
+    // 설문3: 이미지가 하나뿐인 옵션부터 정하고, 이미지가 둘인 옵션은 아직 안 나온 이미지 중에서 무작위로 고름 (같은 그림이 두 번 나오지 않게)
+    const tintOf = (key) => S.files[key === 'challengeThen' ? 'challenge' : key];
+    const opts = (pick(2) || []).filter((o) => STICKER_OF.tint[o]).map((o) => ({ o, keys: [].concat(STICKER_OF.tint[o]) }));
+    opts.sort((a, b) => a.keys.length - b.keys.length);
+    opts.forEach(({ o, keys }) => {
+      const fresh = keys.filter((k) => !seen.has(k));
+      if (!fresh.length) return;
+      const key = fresh[Math.floor(Math.random() * fresh.length)];
+      add(key, 'tint', () => S.tint(o, colors.then || '#000000', tintOf(key)));
+    });
     (pick(3) || []).forEach((o) => { const key = STICKER_OF.line[o]; const src = S.lineForOption(o); if (key && src) add(key, 'line', async () => { const img = new Image(); img.src = src; await img.decode().catch(() => {}); return img; }); });
     (pick(4) || []).forEach((o) => { const key = STICKER_OF.now[o]; if (key && S.nowForOption(o)) add(key, 'now', () => S.tintNow(o, colors.now || '#000000')); });
     return Promise.all(jobs.map(async ({ key, kind, make }) => {

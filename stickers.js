@@ -8,16 +8,44 @@ const STICKER_FILES = {
   pause: 'assets/stickers/pause.png',           // 멈춤 · 기다림 · 망설임
   straight: 'assets/stickers/straight.png',     // 직진
   giveup: 'assets/stickers/giveup.png',         // 포기
-  hollow: 'assets/stickers/hollow.png',         // 허탈함
+  hollow: 'assets/stickers/hollow.png',         // 허탈함 · 후회 · 슬픔
+  release: 'assets/stickers/release.png',       // 놓음
+  hold: 'assets/stickers/hold.png',             // 붙잡음
+  alone: 'assets/stickers/alone.png',           // 혼자 · 돌아섬
+  together: 'assets/stickers/together.png',     // 함께
+  anxious: 'assets/stickers/anxious.png',       // 불안 · 초조 · 막막함(둘 중 하나)
+  hope: 'assets/stickers/hope.png',             // 기대 · 설렘
+  tense: 'assets/stickers/tense.png',           // 긴장 · 답답함
+  fear: 'assets/stickers/fear.png',             // 두려움(둘 중 하나)
+  cliff: 'assets/stickers/cliff.png',           // 두려움 · 막막함 (둘 중 하나)
+  calm: 'assets/stickers/calm.png',             // 담담함
 };
+// 값이 배열이면 그 옵션을 고를 때 배열 안의 이미지 중 하나가 무작위로 나옴 (결과지에서 정함)
 const OPTION_STICKERS = {
   '도전': STICKER_FILES.challenge,
   '멈춤': STICKER_FILES.pause,
   '기다림': STICKER_FILES.pause,
   '망설임': STICKER_FILES.pause,
   '직진': STICKER_FILES.straight,
+  '반복': STICKER_FILES.straight,     // 반복은 직진과 같은 이미지
   '포기': STICKER_FILES.giveup,
   '허탈함': STICKER_FILES.hollow,
+  '후회': STICKER_FILES.hollow,       // 후회는 허탈함과 같은 이미지
+  '슬픔': STICKER_FILES.hollow,       // 슬픔도 허탈함과 같은 이미지
+  '놓음': STICKER_FILES.release,
+  '붙잡음': STICKER_FILES.hold,
+  '혼자': STICKER_FILES.alone,
+  '돌아섬': STICKER_FILES.alone,
+  '함께': STICKER_FILES.together,
+  '불안': STICKER_FILES.anxious,
+  '초조': STICKER_FILES.anxious,
+  '막막함': [STICKER_FILES.anxious, STICKER_FILES.cliff],   // 둘 중 하나 무작위
+  '기대': STICKER_FILES.hope,
+  '설렘': STICKER_FILES.hope,
+  '긴장': STICKER_FILES.tense,
+  '답답함': STICKER_FILES.tense,
+  '두려움': [STICKER_FILES.fear, STICKER_FILES.cliff],      // 둘 중 하나 무작위
+  '담담함': STICKER_FILES.calm,
 };
 
 // ---------- 설문4 '실패라고 생각한 계기' 옵션 ↔ 선 그림 ----------
@@ -78,9 +106,15 @@ function loadSticker(src) {
   return stickerImages[src];
 }
 
-// 옵션 이름 → 이미지 경로 (대응되는 이미지가 없는 옵션은 null)
+// 옵션 이름 → 이미지 경로 (대응되는 이미지가 없는 옵션은 null). 이미지가 둘인 옵션은 무작위로 하나
 function stickerFor(option) {
-  return OPTION_STICKERS[option] || null;
+  const v = OPTION_STICKERS[option];
+  return Array.isArray(v) ? v[Math.floor(Math.random() * v.length)] : (v || null);
+}
+// 옵션에 대응되는 이미지 후보 전부 (없으면 빈 배열)
+function stickerChoices(option) {
+  const v = OPTION_STICKERS[option];
+  return Array.isArray(v) ? v.slice() : (v ? [v] : []);
 }
 
 const parseHex = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
@@ -125,8 +159,8 @@ async function boxTint(entry, hex) {
 }
 
 // 설문3 이미지 + 6번 '당시' 색
-async function tintSticker(option, hex) {
-  const src = stickerFor(option);
+async function tintSticker(option, hex, src) {
+  src = src || stickerFor(option);
   return src ? inkTint(src, hex) : null;
 }
 // 색을 입히지 않고 원본 그대로 <canvas> 로
@@ -147,7 +181,7 @@ async function tintNowSticker(option, hex) {
 }
 
 window.Stickers = {
-  files: STICKER_FILES, byOption: OPTION_STICKERS, forOption: stickerFor, tint: tintSticker,   // 설문3: 색을 입히는 이미지
+  files: STICKER_FILES, byOption: OPTION_STICKERS, forOption: stickerFor, choices: stickerChoices, tint: tintSticker,   // 설문3: 색을 입히는 이미지
   lineFiles: LINE_FILES, lineByOption: OPTION_LINES, lineForOption: lineFor,                    // 설문4: 검정 그대로 쓰는 이미지
   heroFor, heroImages: HERO_IMAGES,                                                               // 설문5: 가운데 프레임의 큰 사진
   nowFiles: NOW_FILES, nowByOption: OPTION_NOW_STICKERS, nowForOption: nowStickerFor, tintNow: tintNowSticker,   // 설문5: '지금' 색을 입히는 이미지
