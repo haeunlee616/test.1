@@ -657,6 +657,8 @@
     }
     await sleep(500);
     await thump(root);                       // 도장 찍히듯 쿵
+    // 완성된 결과지를 아카이빙에 저장 (앞·뒷면 그림). 확인용 demo 화면은 저장하지 않음 (opts.archive 로 직접 정할 수도 있음)
+    if ((opts.archive !== undefined ? opts.archive : !opts.demo) && window.Archive && window.Archive.save) window.Archive.save(root);
     await sleep(900);
 
     // 3) 결과지가 작아지며 왼쪽으로, 오른쪽에 안내. 이제 손동작으로 뒤집어 볼 수 있음

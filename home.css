@@ -1944,6 +1944,13 @@ html, body {
 .bk-fan { pointer-events: none; }
 .bk-caption { opacity: 0; transition: opacity 0.8s ease; }
 .bk-caption.is-on { opacity: 1; }
+/* 책 양옆의 이전/다음 장 화살표 (책이 다 펼쳐진 뒤에 나타남) */
+.bk-nav { position: absolute; top: 470px; width: 58px; height: 58px; padding: 0; border: 1px solid rgba(255, 255, 255, 0.45); border-radius: 50%; background: transparent; color: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; opacity: 0; pointer-events: none; transition: opacity 0.6s ease, background 0.2s ease; }
+.bk-nav--prev { left: 190px; }
+.bk-nav--next { left: 1192px; }
+.bk-caption.is-on ~ .bk-nav { opacity: 1; pointer-events: auto; }
+.bk-nav:hover { background: rgba(255, 255, 255, 0.14); }
+.ar-layer.is-first .bk-caption.is-on ~ .bk-nav--prev, .ar-layer.is-last .bk-caption.is-on ~ .bk-nav--next { opacity: 0.2; pointer-events: none; }
 
 .bk-leaf--left { background: #fff; border: 1px solid #222; box-sizing: border-box; }
 /* 표지가 아직 닫혀 있을 때 왼쪽으로 삐져나오지 않도록: 왼쪽 쪽·왼쪽 옆면·바닥판은 표지가 90도를 지나 왼쪽을 덮기 시작한 뒤에 나타남 */

@@ -1,4 +1,5 @@
 const express = require('express');
+const fs = require('fs');
 const path = require('path');
 const Interpretation = require('./interpretation-prompt');
 
@@ -11,6 +12,7 @@ const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
 const OPENAI_BASE_URL = process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1';
 
 app.set('trust proxy', 1);              // Render 앞단 프록시 뒤에서도 방문자 IP 를 제대로 읽음
+app.use('/api/archive', express.json({ limit: '12mb' }));   // 아카이빙 저장은 결과지 그림(앞·뒷면)이 들어와서 더 크게 받음 (나머지 API 는 아래의 10kb)
 app.use(express.json({ limit: '10kb' }));
 
 // 내 컴퓨터(localhost)에서 열어 본 화면이 이 서버의 AI 를 쓸 수 있게 허용 (다른 사이트는 허용하지 않음)
@@ -19,7 +21,7 @@ app.use('/api', (req, res, next) => {
   if (origin && /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     res.setHeader('Vary', 'Origin');
   }
   if (req.method === 'OPTIONS') return res.sendStatus(204);
@@ -30,13 +32,13 @@ app.use('/api', (req, res, next) => {
 const RATE_WINDOW_MS = 60 * 1000;
 const RATE_MAX = 10;
 const hits = new Map();
-function overLimit(ip) {
+function overLimit(ip, store = hits, max = RATE_MAX) {
   const now = Date.now();
-  const recent = (hits.get(ip) || []).filter((t) => now - t < RATE_WINDOW_MS);
+  const recent = (store.get(ip) || []).filter((t) => now - t < RATE_WINDOW_MS);
   recent.push(now);
-  hits.set(ip, recent);
-  if (hits.size > 5000) for (const [key, list] of hits) if (!list.some((t) => now - t < RATE_WINDOW_MS)) hits.delete(key);
-  return recent.length > RATE_MAX;
+  store.set(ip, recent);
+  if (store.size > 5000) for (const [key, list] of store) if (!list.some((t) => now - t < RATE_WINDOW_MS)) store.delete(key);
+  return recent.length > max;
 }
 
 const isStringList = (v, maxItems, maxLen) => Array.isArray(v) && v.length <= maxItems && v.every((s) => typeof s === 'string' && s.length > 0 && s.length <= maxLen);
@@ -93,6 +95,82 @@ aiRoute('/api/translate', ({ word }) => (isShortText(word, 30) ? Interpretation.
 aiRoute('/api/example', ({ word, meaning }) => (
   isShortText(word, 30) && isShortText(meaning, 60) ? Interpretation.sentencePrompt({ word: word.trim(), meaning: meaning.trim() }) : null
 ), 200);
+
+// ---------- 아카이빙: 참여자가 만든 결과지(앞면·뒷면 그림)를 순서대로 저장하고, 책에 넣을 목록을 내려줌 ----------
+// 저장 위치는 ARCHIVE_DIR (기본: 이 폴더의 archive-data/). 파일: <id>-front.<확장자>, <id>-back.<확장자>, 순서 목록 index.json
+// ※ Render 무료 서비스의 디스크는 다시 배포하거나 서버가 잠들었다 깨면 비워짐 → 오래 보관하려면 Render 'Disk' 를 붙이고 ARCHIVE_DIR 를 그 경로로 지정
+const ARCHIVE_DIR = process.env.ARCHIVE_DIR || path.join(__dirname, 'archive-data');
+const ARCHIVE_INDEX = path.join(ARCHIVE_DIR, 'index.json');
+const ARCHIVE_MAX_SHEETS = 1000;                 // 이보다 많이 쌓이면 더 받지 않음
+const ARCHIVE_MAX_IMAGE_BYTES = 4 * 1024 * 1024; // 그림 한 장 최대 크기
+const ARCHIVE_SAVES_PER_MIN = 6;                 // 같은 IP 가 1분에 저장할 수 있는 횟수
+const saveHits = new Map();
+let archiveSheets = null;                        // [{ id, t, ext }] 오래된 것 → 최신 순
+let archiveQueue = Promise.resolve();            // 저장을 한 번에 하나씩 (순서·목록 파일이 꼬이지 않게)
+
+async function loadArchive() {
+  if (archiveSheets) return archiveSheets;
+  try {
+    const data = JSON.parse(await fs.promises.readFile(ARCHIVE_INDEX, 'utf8'));
+    // 그림 파일이 실제로 있는 것만 남김 (파일이 지워졌는데 목록에만 있으면 책에 깨진 쪽이 생기므로)
+    archiveSheets = Array.isArray(data.sheets)
+      ? data.sheets.filter((x) => x && /^[a-z0-9]+$/.test(x.id) && /^(png|webp|jpg)$/.test(x.ext)
+        && fs.existsSync(path.join(ARCHIVE_DIR, `${x.id}-front.${x.ext}`)) && fs.existsSync(path.join(ARCHIVE_DIR, `${x.id}-back.${x.ext}`)))
+      : [];
+  } catch {
+    archiveSheets = [];
+  }
+  return archiveSheets;
+}
+
+// 'data:image/webp;base64,....' → { ext, buf }. 그림이 아니거나 너무 크면 null (앞부분 바이트로 실제 형식까지 확인)
+function decodeImage(dataUrl) {
+  const m = /^data:image\/(png|webp|jpeg);base64,([A-Za-z0-9+/=]+)$/.exec(typeof dataUrl === 'string' ? dataUrl : '');
+  if (!m) return null;
+  const buf = Buffer.from(m[2], 'base64');
+  if (buf.length < 100 || buf.length > ARCHIVE_MAX_IMAGE_BYTES) return null;
+  const isPng = buf.subarray(0, 4).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+  const isJpg = buf[0] === 0xff && buf[1] === 0xd8;
+  const isWebp = buf.subarray(0, 4).toString('latin1') === 'RIFF' && buf.subarray(8, 12).toString('latin1') === 'WEBP';
+  if (m[1] === 'png' && isPng) return { ext: 'png', buf };
+  if (m[1] === 'jpeg' && isJpg) return { ext: 'jpg', buf };
+  if (m[1] === 'webp' && isWebp) return { ext: 'webp', buf };
+  return null;
+}
+
+// 최신 결과지가 맨 앞 (책은 최신부터 펼쳐짐)
+app.get('/api/archive', async (req, res) => {
+  const list = await loadArchive();
+  res.set('Cache-Control', 'no-store');
+  res.json({
+    sheets: [...list].reverse().map((x) => ({ id: x.id, t: x.t, front: `/archive-data/${x.id}-front.${x.ext}`, back: `/archive-data/${x.id}-back.${x.ext}` })),
+  });
+});
+
+app.post('/api/archive', (req, res) => {
+  if (overLimit(req.ip, saveHits, ARCHIVE_SAVES_PER_MIN)) return res.status(429).json({ error: '잠시 뒤에 다시 시도해 주세요.' });
+  const front = decodeImage(req.body && req.body.front);
+  const back = decodeImage(req.body && req.body.back);
+  if (!front || !back || front.ext !== back.ext) return res.status(400).json({ error: '결과지 그림 형식이 올바르지 않아요.' });   // 앞·뒷면은 같은 형식으로 받음
+  archiveQueue = archiveQueue.then(async () => {
+    const list = await loadArchive();
+    if (list.length >= ARCHIVE_MAX_SHEETS) return res.status(507).json({ error: '아카이빙이 가득 찼어요.' });
+    const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    await fs.promises.mkdir(ARCHIVE_DIR, { recursive: true });
+    await fs.promises.writeFile(path.join(ARCHIVE_DIR, `${id}-front.${front.ext}`), front.buf);
+    await fs.promises.writeFile(path.join(ARCHIVE_DIR, `${id}-back.${back.ext}`), back.buf);
+    const entry = { id, t: Date.now(), ext: front.ext };
+    const next = [...list, entry];
+    await fs.promises.writeFile(`${ARCHIVE_INDEX}.tmp`, JSON.stringify({ sheets: next }));
+    await fs.promises.rename(`${ARCHIVE_INDEX}.tmp`, ARCHIVE_INDEX);
+    archiveSheets = next;
+    return res.json({ id, t: entry.t, front: `/archive-data/${id}-front.${entry.ext}`, back: `/archive-data/${id}-back.${entry.ext}` });
+  }).catch((err) => {
+    console.error('아카이빙 저장 실패', err.message);
+    if (!res.headersSent) res.status(500).json({ error: '저장하지 못했어요.' });
+  });
+});
+app.use('/archive-data', express.static(ARCHIVE_DIR, { maxAge: '7d', immutable: true }));
 
 // index.html, style.css, script.js를 그대로 정적 파일로 내려줌
 app.use(express.static(__dirname));
