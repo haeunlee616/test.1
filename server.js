@@ -98,8 +98,17 @@ aiRoute('/api/example', ({ word, meaning }) => (
 
 // ---------- 아카이빙: 참여자가 만든 결과지(앞면·뒷면 그림)를 순서대로 저장하고, 책에 넣을 목록을 내려줌 ----------
 // 저장 위치는 ARCHIVE_DIR (기본: 이 폴더의 archive-data/). 파일: <id>-front.<확장자>, <id>-back.<확장자>, 순서 목록 index.json
-// ※ Render 무료 서비스의 디스크는 다시 배포하거나 서버가 잠들었다 깨면 비워짐 → 오래 보관하려면 Render 'Disk' 를 붙이고 ARCHIVE_DIR 를 그 경로로 지정
-const ARCHIVE_DIR = process.env.ARCHIVE_DIR || path.join(__dirname, 'archive-data');
+// ※ Render 무료 서비스의 디스크는 다시 배포하거나 서버가 잠들었다 깨면 비워짐 → 오래 보관하려면 아래 둘 중 하나:
+//    (1) Render 'Disk' 를 붙이고 ARCHIVE_DIR 를 그 경로로 지정
+//    (2) 별도 GitHub 비공개 저장소에 함께 저장: 환경변수 ARCHIVE_GITHUB_REPO('계정/저장소') + ARCHIVE_GITHUB_TOKEN (그 저장소 Contents 읽기·쓰기 권한 토큰)
+//        → 저장할 때 그 저장소의 sheets/ 폴더에도 올리고, 서버가 새로 켜질 때 거기서 목록을 복원함 (디스크는 캐시로만 씀)
+const ARCHIVE_DIR = path.resolve(process.env.ARCHIVE_DIR || path.join(__dirname, 'archive-data'));
+const GH_REPO = process.env.ARCHIVE_GITHUB_REPO || '';
+const GH_TOKEN = process.env.ARCHIVE_GITHUB_TOKEN || '';
+const GH_BRANCH = process.env.ARCHIVE_GITHUB_BRANCH || 'main';
+const GH_API = process.env.ARCHIVE_GITHUB_API || 'https://api.github.com';
+const GH_ON = !!(GH_TOKEN && /^[\w.-]+\/[\w.-]+$/.test(GH_REPO));
+const ghShas = new Map();                        // 파일 이름 → GitHub blob sha (내려받을 때 씀)
 const ARCHIVE_INDEX = path.join(ARCHIVE_DIR, 'index.json');
 const ARCHIVE_MAX_SHEETS = 1000;                 // 이보다 많이 쌓이면 더 받지 않음
 const ARCHIVE_MAX_IMAGE_BYTES = 4 * 1024 * 1024; // 그림 한 장 최대 크기
@@ -108,8 +117,84 @@ const saveHits = new Map();
 let archiveSheets = null;                        // [{ id, t, ext }] 오래된 것 → 최신 순
 let archiveQueue = Promise.resolve();            // 저장을 한 번에 하나씩 (순서·목록 파일이 꼬이지 않게)
 
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const ARCHIVE_FILE = /^([a-z0-9]+)-(front|back)\.(png|webp|jpg)$/;
+const newArchiveId = () => Date.now().toString(36).padStart(9, '0') + Math.random().toString(36).slice(2, 6).padEnd(4, '0');   // 시간(9자) + 무작위(4자) — 이름순 = 저장순
+
+function ghRequest(method, urlPath, { body, accept } = {}) {
+  return fetch(`${GH_API}/repos/${GH_REPO}${urlPath}`, {
+    method,
+    headers: {
+      Authorization: `Bearer ${GH_TOKEN}`,
+      Accept: accept || 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28',
+      'User-Agent': 'failure-dictionary-archive',
+      ...(body ? { 'Content-Type': 'application/json' } : {}),
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+}
+
+// GitHub 저장소의 sheets/ 폴더에서 저장된 결과지 목록을 복원 (앞·뒷면이 모두 있는 것만, 저장 순)
+async function ghLoadList() {
+  const res = await ghRequest('GET', `/git/trees/${encodeURIComponent(GH_BRANCH)}?recursive=1`);
+  if (res.status === 404 || res.status === 409) return [];       // 아직 비어 있는 저장소
+  if (!res.ok) throw new Error(`GitHub 목록 ${res.status}`);
+  const data = await res.json();
+  const found = new Map();
+  (data.tree || []).forEach((n) => {
+    const m = n.type === 'blob' ? /^sheets\/(.+)$/.exec(n.path) : null;
+    const f = m && ARCHIVE_FILE.exec(m[1]);
+    if (!f) return;
+    ghShas.set(m[1], n.sha);
+    const e = found.get(f[1]) || {};
+    e[f[2]] = f[3];
+    found.set(f[1], e);
+  });
+  return [...found.entries()]
+    .filter(([, e]) => e.front && e.front === e.back)
+    .map(([id, e]) => ({ id, t: parseInt(id.slice(0, 9), 36), ext: e.front }))
+    .sort((a, b) => (a.id < b.id ? -1 : 1));
+}
+
+async function ghPut(name, buf) {
+  let last;
+  for (let i = 0; i < 3; i++) {
+    try {
+      const res = await ghRequest('PUT', `/contents/sheets/${name}`, { body: { message: `archive ${name}`, content: buf.toString('base64'), branch: GH_BRANCH } });
+      if (res.ok) { const j = await res.json(); if (j.content && j.content.sha) ghShas.set(name, j.content.sha); return; }
+      last = new Error(`GitHub 저장 ${res.status}`);
+    } catch (err) { last = err; }
+    await sleep(600 * (i + 1));
+  }
+  throw last;
+}
+
+const ghPulls = new Map();
+function ghPull(name, file) {
+  if (!ghPulls.has(name)) {
+    ghPulls.set(name, (async () => {
+      const res = await ghRequest('GET', `/git/blobs/${ghShas.get(name)}`, { accept: 'application/vnd.github.raw+json' });
+      if (!res.ok) throw new Error(`GitHub 파일 ${res.status}`);
+      await fs.promises.mkdir(ARCHIVE_DIR, { recursive: true });
+      await fs.promises.writeFile(`${file}.tmp`, Buffer.from(await res.arrayBuffer()));
+      await fs.promises.rename(`${file}.tmp`, file);
+    })().finally(() => ghPulls.delete(name)));
+  }
+  return ghPulls.get(name);
+}
+
 async function loadArchive() {
   if (archiveSheets) return archiveSheets;
+  if (GH_ON) {
+    try {
+      archiveSheets = await ghLoadList();
+    } catch (err) {
+      console.error('아카이빙 목록을 GitHub 에서 불러오지 못함', err.message);
+      return [];                                                  // 저장해 두지 않고 다음 요청 때 다시 시도
+    }
+    return archiveSheets;
+  }
   try {
     const data = JSON.parse(await fs.promises.readFile(ARCHIVE_INDEX, 'utf8'));
     // 그림 파일이 실제로 있는 것만 남김 (파일이 지워졌는데 목록에만 있으면 책에 깨진 쪽이 생기므로)
@@ -155,14 +240,25 @@ app.post('/api/archive', (req, res) => {
   archiveQueue = archiveQueue.then(async () => {
     const list = await loadArchive();
     if (list.length >= ARCHIVE_MAX_SHEETS) return res.status(507).json({ error: '아카이빙이 가득 찼어요.' });
-    const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    if (GH_ON && !archiveSheets) return res.status(503).json({ error: '저장소에 연결하지 못했어요.' });   // 목록을 못 불러온 채로 저장하면 이전 기록과 어긋날 수 있어 받지 않음
+    const id = newArchiveId();
+    const files = [[`${id}-back.${back.ext}`, back.buf], [`${id}-front.${front.ext}`, front.buf]];   // 앞면이 마지막: 둘 다 올라가야 목록에 나타남
     await fs.promises.mkdir(ARCHIVE_DIR, { recursive: true });
-    await fs.promises.writeFile(path.join(ARCHIVE_DIR, `${id}-front.${front.ext}`), front.buf);
-    await fs.promises.writeFile(path.join(ARCHIVE_DIR, `${id}-back.${back.ext}`), back.buf);
+    await Promise.all(files.map(([name, buf]) => fs.promises.writeFile(path.join(ARCHIVE_DIR, name), buf)));
+    if (GH_ON) {
+      try {
+        for (const [name, buf] of files) await ghPut(name, buf);
+      } catch (err) {
+        await Promise.all(files.map(([name]) => fs.promises.rm(path.join(ARCHIVE_DIR, name), { force: true })));
+        throw err;
+      }
+    }
     const entry = { id, t: Date.now(), ext: front.ext };
     const next = [...list, entry];
-    await fs.promises.writeFile(`${ARCHIVE_INDEX}.tmp`, JSON.stringify({ sheets: next }));
-    await fs.promises.rename(`${ARCHIVE_INDEX}.tmp`, ARCHIVE_INDEX);
+    if (!GH_ON) {
+      await fs.promises.writeFile(`${ARCHIVE_INDEX}.tmp`, JSON.stringify({ sheets: next }));
+      await fs.promises.rename(`${ARCHIVE_INDEX}.tmp`, ARCHIVE_INDEX);
+    }
     archiveSheets = next;
     return res.json({ id, t: entry.t, front: `/archive-data/${id}-front.${entry.ext}`, back: `/archive-data/${id}-back.${entry.ext}` });
   }).catch((err) => {
@@ -170,7 +266,25 @@ app.post('/api/archive', (req, res) => {
     if (!res.headersSent) res.status(500).json({ error: '저장하지 못했어요.' });
   });
 });
-app.use('/archive-data', express.static(ARCHIVE_DIR, { maxAge: '7d', immutable: true }));
+
+// 결과지 그림 내려주기: 디스크에 없고 GitHub 에 있으면 받아 와서 디스크에 캐시해 두고 보냄
+app.get('/archive-data/:name', async (req, res) => {
+  const name = req.params.name;
+  if (!ARCHIVE_FILE.test(name)) return res.sendStatus(404);
+  const file = path.join(ARCHIVE_DIR, name);
+  try {
+    if (!fs.existsSync(file) && GH_ON) {
+      await loadArchive();
+      if (ghShas.has(name)) await ghPull(name, file);
+    }
+  } catch (err) {
+    console.error('아카이빙 그림을 GitHub 에서 받지 못함', err.message);
+    return res.sendStatus(502);
+  }
+  if (!fs.existsSync(file)) return res.sendStatus(404);
+  res.set('Cache-Control', 'public, max-age=604800, immutable');
+  return res.sendFile(file);
+});
 
 // index.html, style.css, script.js를 그대로 정적 파일로 내려줌
 app.use(express.static(__dirname));

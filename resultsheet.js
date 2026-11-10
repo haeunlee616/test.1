@@ -22,7 +22,7 @@
     release: 80, hold: 85, alone: 80, together: 100, anxious: 90, hope: 90, tense: 100, fear: 95, cliff: 80, calm: 95,
   };
   const TILT_MAX = 5;                                    // 기울기: -5° ~ +5° 무작위
-  const ZONE = { left: [0.02, 0.52], right: [0.48, 0.98] };   // 그림 가운데가 놓일 가로 범위(칸 너비 비율): 설문3·4 는 왼쪽, 설문5 는 오른쪽 (겹치는 구간은 있음)
+  const ZONE = { left: [0.02, 0.5], right: [0.5, 0.98] };    // 그림 가운데가 놓일 가로 범위(칸 너비 비율): 왼쪽 절반 / 오른쪽 절반
   const MAX_WORD_OVERLAP = 0.08;                         // 그림이 큰 글자를 덮어도 되는 비율 (넘으면 다른 자리를 찾음)
   const MAX_STICKER_OVERLAP = 0.06;                      // 그림끼리 겹쳐도 되는 비율
   // 설문 응답 → 보여줄 그림. kind: tint(설문3·당시색) / line(설문4·검정 그대로) / now(설문5·지금색)
@@ -211,15 +211,18 @@
     };
   }
 
-  // 그림 자리 정하기: 설문3·4 그림은 왼쪽, 설문5 그림은 오른쪽 구역에서 무작위로 골라, 큰 글자·가운데 문장·다른 그림을 너무 덮지 않는 자리를 찾음. 기울기도 -5°~5° 무작위
+  // 그림 자리 정하기: 그림이 차지하는 넓이가 왼쪽·오른쪽에 고르게 나뉘도록 (큰 그림부터) 더 비어 있는 쪽 구역을 골라, 큰 글자·가운데 문장·다른 그림을 너무 덮지 않는 자리를 찾음. 기울기도 -5°~5° 무작위
   function placeStickers(items, layout, obstacle, rng) {
     const covered = occupancy(layout, obstacle);
     const placed = [];
     const margin = 8;
     const pad = 6;                                        // 그림 둘레 여유
     const order = [...items].sort((a, b) => b.w * b.h - a.w * a.h);   // 큰 그림부터 자리를 잡음
+    const area = { left: 0, right: 0 };
     order.forEach((item) => {
-      const zone = item.kind === 'now' ? ZONE.right : ZONE.left;
+      const side = area.left === area.right ? (rng() < 0.5 ? 'left' : 'right') : (area.left < area.right ? 'left' : 'right');
+      area[side] += item.w * item.h;
+      const zone = ZONE[side];
       const w = item.w; const h = item.h;
       let best = null;
       for (let tries = 0; tries < 600; tries++) {
@@ -593,6 +596,7 @@
     cardWrap.append(root);
     creating.textContent = `Creating ${root.nickname}'s RE:FAILURE DICTIONARY...`;
     const front = root.faces.front;
+    front.photo?.classList.add('is-in');                    // 배경 사진은 결과지가 나오자마자 현상되기 시작 (AI 단어 번역을 기다리는 동안에도)
     // 손가락을 오른쪽으로 그으면 +180°, 왼쪽으로 그으면 -180° 돌아감 (앞면 ↔ 뒷면)
     let angle = 0;
     root.dataset.side = 'front';
@@ -620,18 +624,18 @@
     const rng = makeRng(opts.seed != null ? opts.seed + 1 : Math.floor(Math.random() * 4294967296));
     const wordSvg = front.art.querySelector('.rs-word');
 
-    // 0) 맨 위 회색 띠: 닉네임 점선이 그려지고, failure → (NO SUCCESS) 에 취소선이 쓱 그어짐
-    await sleep(500);
+    // 0) 배경 사진은 거의 바로 깔리기 시작해(필름 현상 효과는 그대로) 현상되는 동안 맨 위 회색 띠가 그려짐:
+    //    닉네임 점선이 그려지고, failure → (NO SUCCESS) 에 취소선이 쓱 그어짐
+    await sleep(350);
     wipeOn(front.nick);
-    await sleep(700);
+    await sleep(550);
     wipeOn(front.strikes[0]);
-    await sleep(650);
+    await sleep(500);
     wipeOn(front.strikes[1]);
-    await sleep(700);
+    await sleep(550);
 
-    // 1) 가운데 박스: 필름이 현상되듯 사진 → 종이를 덮고 글자를 점선으로 오려내 떨어뜨림 → 설문2 문장이 툭툭 붙음 → 나머지 그림이 스톱모션으로 하나씩
-    front.photo?.classList.add('is-in');
-    await sleep(1300);
+    // 1) 가운데 박스: (사진은 이미 현상 중) 종이를 덮고 글자를 점선으로 오려내 떨어뜨림 → 설문2 문장이 툭툭 붙음 → 나머지 그림이 스톱모션으로 하나씩
+    await sleep(150);
     wordSvg?.classList.add('is-in');
     await sleep(1200);
     if (wordSvg) await cutOutWord(wordSvg);

@@ -179,12 +179,12 @@ const ghostEl = document.querySelector('.caption__ghost');
 // exit: 'fade' = 페이드아웃, 'erase' = 백스페이스로 지움. pauseBefore: 해당 구간을 치기 전에 잠깐 멈추는 시간(ms)
 const SENTENCES = [
   // hold/gap: 문장이 완성된 뒤 머무는 시간 / 지워진 뒤 다음 문장 시작까지 (기본값은 아래 HOLD_MS, BETWEEN_MS)
-  { exit: 'fade', hold: 1000, gap: 0, segs: [{ t: '(1) the fact of someone or something not succeeding' }] },
+  { exit: 'fade', hold: 700, gap: 0, segs: [{ t: '(1) the fact of someone or something not succeeding' }] },
   {
     exit: 'erase',
     segs: [
       { t: '(2) the fact of not doing something that.... ' },
-      { t: 'blah blah blah', i: true, pauseBefore: 1500 },
+      { t: 'blah blah blah', i: true, pauseBefore: 900 },
     ],
   },
   {
@@ -193,11 +193,11 @@ const SENTENCES = [
     onStart: () => turnPage(), // (3)이 나오기 시작할 때 책이 한 페이지 넘어가고, 다 넘어가면 빈 페이지 문구 등장 + (3) 사라짐 + 버튼 등장
   },
 ];
-const HOLD_MS = 2400;   // 문장이 완성된 뒤 읽히도록 머무는 시간
+const HOLD_MS = 1700;   // 문장이 완성된 뒤 읽히도록 머무는 시간
 const ERASE_MS = 14;    // 백스페이스로 지울 때 글자당 시간
-const TYPE_MS = 2000;   // 한 문장을 치는 데 걸리는 시간 (멈춤 제외)
+const TYPE_MS = 1600;   // 한 문장을 치는 데 걸리는 시간 (멈춤 제외)
 const FADE_MS = 200;    // 페이드아웃 시간
-const BETWEEN_MS = 350; // 지워진 뒤 다음 문장을 치기 시작하기까지
+const BETWEEN_MS = 200; // 지워진 뒤 다음 문장을 치기 시작하기까지
 const LOOP = false;     // true 로 바꾸면 마지막 문장 뒤에 (1)부터 다시 반복
 
 const WORDS_DURATION = 3200; // 단어 박스가 중앙으로 모이며 사라지는 시간(ms)
