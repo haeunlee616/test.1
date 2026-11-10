@@ -1686,7 +1686,7 @@ html, body {
   position: absolute;
   left: 0;
   width: 100%;
-  top: calc(809 * var(--u));
+  top: calc(839 * var(--u));
   margin: 0;
   text-align: center;
   font-size: calc(28 * var(--u));
@@ -1952,3 +1952,28 @@ html, body {
 .bk-leaf--left { background: #fff; border: 1px solid #222; box-sizing: border-box; }
 /* 표지가 아직 닫혀 있을 때 왼쪽으로 삐져나오지 않도록: 왼쪽 쪽·왼쪽 옆면·바닥판은 표지가 90도를 지나 왼쪽을 덮기 시작한 뒤에 나타남 */
 .bk-book .bk-leaf--left, .bk-book .bk-edge--l, .bk-book .bk-cover { transition: opacity 0.25s ease 1.1s; }
+
+/* ---------- 손 긋기 안내: 손이 가로로 쓱 지나가며 선이 그어지는 동작을 반복 ---------- */
+/* --sg: 크기 단위 (사전 화면은 --u, 결과지 화면은 1px). 점선 길 + 그어지는 실선 + 손 */
+.swipe-guide { position: absolute; --sg: var(--u); --sg-hand: calc(58 * var(--sg)); height: var(--sg-hand); color: currentColor; pointer-events: none; user-select: none; }
+.sg-rail, .sg-trail { position: absolute; left: 0; width: 100%; top: calc(7 * var(--sg)); height: 0; border-top: calc(3 * var(--sg)) dashed currentColor; opacity: 0.28; }
+.sg-rail::after { content: ""; position: absolute; right: calc(-2 * var(--sg)); top: calc(-8.5 * var(--sg)); width: calc(13 * var(--sg)); height: calc(13 * var(--sg)); border-top: calc(3 * var(--sg)) solid currentColor; border-right: calc(3 * var(--sg)) solid currentColor; transform: rotate(45deg); }
+.swipe-guide--both .sg-rail::before { content: ""; position: absolute; left: calc(-2 * var(--sg)); top: calc(-8.5 * var(--sg)); width: calc(13 * var(--sg)); height: calc(13 * var(--sg)); border-bottom: calc(3 * var(--sg)) solid currentColor; border-left: calc(3 * var(--sg)) solid currentColor; transform: rotate(45deg); }
+.sg-trail { border-top-style: solid; opacity: 0; transform-origin: left center; transform: scaleX(0); animation: sg-trail-one 3s ease-in-out infinite; }
+.sg-hand { position: absolute; left: 0; top: 0; height: var(--sg-hand); transform: translateX(-30%) rotate(-19deg); opacity: 0; animation: sg-hand-one 3s ease-in-out infinite; }
+/* 한 방향 (왼쪽 → 오른쪽): 나타남 → 쓱 이동하며 선이 그어짐 → 사라짐 */
+@keyframes sg-hand-one { 0% { left: 0; opacity: 0; } 10% { left: 0; opacity: 1; } 20% { left: 0; opacity: 1; } 62% { left: 100%; opacity: 1; } 76% { left: 100%; opacity: 0; } 100% { left: 100%; opacity: 0; } }
+@keyframes sg-trail-one { 0% { transform: scaleX(0); opacity: 0; } 20% { transform: scaleX(0); opacity: 0.9; } 62% { transform: scaleX(1); opacity: 0.9; } 76% { transform: scaleX(1); opacity: 0; } 100% { transform: scaleX(1); opacity: 0; } }
+/* 양방향 (왼쪽 → 오른쪽 → 왼쪽) */
+.swipe-guide--both .sg-hand { animation: sg-hand-both 5.2s ease-in-out infinite; }
+.swipe-guide--both .sg-trail { animation: sg-trail-both 5.2s ease-in-out infinite; }
+@keyframes sg-hand-both { 0% { left: 0; opacity: 0; } 6% { left: 0; opacity: 1; } 12% { left: 0; opacity: 1; } 38% { left: 100%; opacity: 1; } 46% { left: 100%; opacity: 1; } 72% { left: 0; opacity: 1; } 82% { left: 0; opacity: 0; } 100% { left: 0; opacity: 0; } }
+@keyframes sg-trail-both { 0% { transform: scaleX(0); opacity: 0; } 12% { transform: scaleX(0); opacity: 0.9; } 38% { transform: scaleX(1); opacity: 0.9; } 46% { transform: scaleX(1); opacity: 0.9; } 72% { transform: scaleX(0); opacity: 0.9; } 82%, 100% { transform: scaleX(0); opacity: 0; } }
+.swipe-guide--dfn { --sg-hand: calc(80 * var(--u)); left: calc(520 * var(--u)); top: calc(746 * var(--u)); width: calc(400 * var(--u)); color: #fff; transition: opacity 0.4s ease; }
+.dfn.is-struck .swipe-guide--dfn { opacity: 0; }
+.swipe-guide--dfn .sg-hand { filter: invert(1); }   /* 어두운 배경이라 검정 선 손을 흰색으로 */
+.swipe-guide--rp { --sg: 1px; --sg-hand: 84px; left: 0; top: -170px; width: 560px; color: #111; }
+@media (prefers-reduced-motion: reduce) {
+  .sg-hand { animation: none; opacity: 1; left: 50%; }
+  .sg-trail { animation: none; }
+}

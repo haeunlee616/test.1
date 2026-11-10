@@ -574,6 +574,10 @@
     const cardWrap = el('div', 'rp-card', scroll);
     const creating = el('p', 'rp-creating', scroll);
     const guide = el('div', 'rp-guide', rp);
+    const sg = el('div', 'swipe-guide swipe-guide--rp swipe-guide--both', guide);       // 손이 좌우로 쓱쓱 지나가는 안내 동작
+    sg.setAttribute('aria-hidden', 'true');
+    el('span', 'sg-rail', sg); el('span', 'sg-trail', sg);
+    const sgHand = el('img', 'sg-hand', sg); sgHand.src = 'assets/hand.png'; sgHand.alt = ''; sgHand.draggable = false;
     const g1 = el('p', 'rp-guide__item', guide);
     g1.innerHTML = '<span>1.</span>자세히 보고 싶은 부분에 커서를 올려 보세요.';
     const g2 = el('p', 'rp-guide__item', guide);
