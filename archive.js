@@ -87,6 +87,7 @@
 
   // ---------- 결과지 저장: 앞·뒷면을 그림으로 찍어 서버에 올림 ----------
   const SHEET_PX = { w: 1050, h: 1407 };
+  const CAPTURE_WARMUPS = 2;
   let libPromise = null;
   const loadLib = () => libPromise || (libPromise = new Promise((resolve, reject) => {
     if (window.htmlToImage) { resolve(); return; }
@@ -96,17 +97,29 @@
     document.head.append(sc);
   }));
 
+  // 사파리는 (1) SVG 그림 파일을 <img> 로 넣으면 찍을 때 비어 나오고, (2) 용량이 큰 배경 사진도 비어 나옴.
+  // → 찍는 동안만 두 가지를 작은 래스터 그림(PNG·JPEG)으로 바꿔 두고, 끝나면 원래대로 되돌림
+  const loadImg = (src) => new Promise((resolve, reject) => { const im = new Image(); im.onload = () => resolve(im); im.onerror = reject; im.src = src; });
+
   // 글자 모양으로 뚫린 종이(앞면의 큰 글자 SVG)는 mask 를 쓰는데, 그림으로 찍을 때 mask 주소(#id)가 풀리지 않아 뚫리지 않음.
-  // → 찍는 동안만 같은 모습의 독립된 그림(SVG 그림 파일)으로 바꿔 두고, 끝나면 원래대로 되돌림
+  // → 같은 모습을 캔버스에 미리 그려 PNG 그림으로 바꿔 둠
   async function freezeMasks(face) {
     const swaps = [];
     for (const svg of face.querySelectorAll('svg.rs-word')) {
       const xml = new XMLSerializer().serializeToString(svg);
       if (!xml.includes('url(#')) continue;
+      const w = parseFloat(svg.getAttribute('width')); const h = parseFloat(svg.getAttribute('height'));
+      let png;
+      try {
+        const vector = await loadImg(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(xml)}`);
+        const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+        cv.getContext('2d').drawImage(vector, 0, 0, w, h);
+        png = cv.toDataURL('image/png');
+      } catch (err) { continue; }
       const img = new Image();
       img.className = svg.getAttribute('class');
-      img.setAttribute('width', svg.getAttribute('width')); img.setAttribute('height', svg.getAttribute('height'));
-      img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(xml)}`;
+      img.setAttribute('width', w); img.setAttribute('height', h);
+      img.src = png;
       try { await img.decode(); } catch (err) { continue; }
       svg.replaceWith(img);
       swaps.push(() => img.replaceWith(svg));
@@ -114,18 +127,43 @@
     return () => swaps.forEach((undo) => undo());
   }
 
+  // 배경 사진(background-image: url(...))을 칸 크기에 꽉 차게(cover) 미리 그려 작은 JPEG 로 바꿔 둠
+  async function freezePhotos(face) {
+    const undo = [];
+    for (const node of face.querySelectorAll('.rs-photo, .rs-art')) {
+      const m = /url\(["']?(.*?)["']?\)/.exec(node.style.backgroundImage || '');
+      if (!m || m[1].startsWith('data:')) continue;
+      try {
+        const im = await loadImg(m[1]);
+        const w = node.offsetWidth; const h = node.offsetHeight;
+        const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+        const k = Math.max(w / im.naturalWidth, h / im.naturalHeight);
+        cv.getContext('2d').drawImage(im, (w - im.naturalWidth * k) / 2, (h - im.naturalHeight * k) / 2, im.naturalWidth * k, im.naturalHeight * k);
+        const before = node.style.backgroundImage;
+        node.style.backgroundImage = `url(${cv.toDataURL('image/jpeg', 0.92)})`;
+        undo.push(() => { node.style.backgroundImage = before; });
+      } catch (err) { /* 못 바꾸면 원래 그림 그대로 */ }
+    }
+    return () => undo.forEach((f) => f());
+  }
+
   async function capture(root) {
     await loadLib();
     if (document.fonts && document.fonts.ready) await document.fonts.ready;
     const out = {};
     for (const side of ['front', 'back']) {
-      const restore = await freezeMasks(root.faces[side]);
+      const restoreMasks = await freezeMasks(root.faces[side]);
+      const restorePhotos = await freezePhotos(root.faces[side]);
+      const restore = () => { restorePhotos(); restoreMasks(); };
       let raw;
       try {
-        raw = await window.htmlToImage.toCanvas(root.faces[side], {
+        const shoot = () => window.htmlToImage.toCanvas(root.faces[side], {
           width: SHEET_PX.w, height: SHEET_PX.h, canvasWidth: SHEET_PX.w, canvasHeight: SHEET_PX.h, pixelRatio: 1,
           style: { transform: 'none', left: '0px', top: '0px', backfaceVisibility: 'visible' },   // 3D 카드에서 뒤집혀 있던 뒷면도 똑바로
         });
+        // 사파리는 첫 번째로 찍을 때 그림(사진·스티커 등)이 아직 준비되지 않아 비어 나옴 → 몇 번 미리 찍어 그림을 불러 둔 뒤 마지막 것을 씀
+        for (let n = 0; n < CAPTURE_WARMUPS; n++) await shoot();
+        raw = await shoot();
       } finally { restore(); }
       const cv = document.createElement('canvas');                                       // 투명한 곳이 검게 변하지 않게 흰 바탕 위에 그림
       cv.width = SHEET_PX.w; cv.height = SHEET_PX.h;

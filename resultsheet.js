@@ -752,7 +752,8 @@
     window.addEventListener('load', () => window.ResultSheet.show(
       ['H.E', '원하는 회사에 지원했지만 최종 면접에서 떨어졌어요', ['멈춤', '포기', '허탈함'], ['취업·합격 여부', '자기 실망', '사회적 기준', '후회와 미련'],
         ['시작', '경험', '도전', '동력'], { then: '#000000', now: '#e8ff8e' }, { word: '새로운 시작', meaning: '끝인줄 알았지만 또다른 기회의 시작' }],
-      { demo: {
+      { archive: /[?&]savetest=1/.test(location.search) ? true : undefined,   // 확인용: &savetest=1 을 붙이면 이 예시도 아카이빙 저장을 시도함
+        demo: {
         word: 'A New Beginning',
         interpretation: '기대했던 취업이나 합격의 결과에 도달하지 못하며, 스스로에 대한 실망과 허탈함 속에 한동안 멈춰 서게 된 순간. 사회가 정한 기준과 자신의 기대에 미치지 못했다는 생각이 실패라는 판단으로 이어졌다.',
         example: '모든 것이 끝났다고 생각했던 순간은 어쩌면 새로운 시작을 맞이하기 위한 또 다른 기회의 문턱이었을지도 모른다.',
