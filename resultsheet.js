@@ -574,10 +574,6 @@
     const cardWrap = el('div', 'rp-card', scroll);
     const creating = el('p', 'rp-creating', scroll);
     const guide = el('div', 'rp-guide', rp);
-    const sg = el('div', 'swipe-guide swipe-guide--rp swipe-guide--both', guide);       // 손이 좌우로 쓱쓱 지나가는 안내 동작
-    sg.setAttribute('aria-hidden', 'true');
-    el('span', 'sg-rail', sg); el('span', 'sg-trail', sg);
-    const sgHand = el('img', 'sg-hand', sg); sgHand.src = 'assets/hand.png'; sgHand.alt = ''; sgHand.draggable = false;
     const g1 = el('p', 'rp-guide__item', guide);
     g1.innerHTML = '<span>1.</span>자세히 보고 싶은 부분에 커서를 올려 보세요.';
     const g2 = el('p', 'rp-guide__item', guide);
@@ -585,6 +581,8 @@
     const more = el('button', 'rp-more', guide);
     more.type = 'button';
     more.textContent = 'discover more';
+    const moreHand = el('img', 'rp-more__hand', more);       // 눌러 보라는 손가락 커서 힌트 (결과지가 나오고 한참 지나도 안 누르면 나타남)
+    moreHand.src = 'assets/hand.png'; moreHand.alt = ''; moreHand.draggable = false;
     more.addEventListener('click', () => { if (window.Archive) window.Archive.open(); });
     const note = el('p', 'rp-note', guide);
     const fit = () => {

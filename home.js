@@ -685,9 +685,9 @@ window.lockBookView = () => { view.locked = true; view.tx = 50; view.ty = 50; };
   requestAnimationFrame(viewLoop);
 })();
 
-// ---------- 30초 동안 움직임이 없으면 첫 페이지로 ----------
-// 마우스·키보드·터치·카메라(손 움직임)로 사용자의 움직임이 30초 이상 없으면 처음 화면으로 돌아감 (다음 참여자를 위해 설문 기록도 비워짐)
-const IDLE_MS = 30000;
+// ---------- 1분 동안 움직임이 없으면 첫 페이지로 ----------
+// 마우스·키보드·터치·카메라(손 움직임)로 사용자의 움직임이 1분 이상 없으면 처음 화면으로 돌아감 (다음 참여자를 위해 설문 기록도 비워짐)
+const IDLE_MS = 60000;
 let idleTimer = null;
 let lastActive = 0;
 function goBackToStart() {

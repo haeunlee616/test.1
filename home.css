@@ -1958,22 +1958,40 @@ html, body {
 .swipe-guide { position: absolute; --sg: var(--u); --sg-hand: calc(58 * var(--sg)); height: var(--sg-hand); color: currentColor; pointer-events: none; user-select: none; }
 .sg-rail, .sg-trail { position: absolute; left: 0; width: 100%; top: calc(7 * var(--sg)); height: 0; border-top: calc(3 * var(--sg)) dashed currentColor; opacity: 0.28; }
 .sg-rail::after { content: ""; position: absolute; right: calc(-2 * var(--sg)); top: calc(-8.5 * var(--sg)); width: calc(13 * var(--sg)); height: calc(13 * var(--sg)); border-top: calc(3 * var(--sg)) solid currentColor; border-right: calc(3 * var(--sg)) solid currentColor; transform: rotate(45deg); }
-.swipe-guide--both .sg-rail::before { content: ""; position: absolute; left: calc(-2 * var(--sg)); top: calc(-8.5 * var(--sg)); width: calc(13 * var(--sg)); height: calc(13 * var(--sg)); border-bottom: calc(3 * var(--sg)) solid currentColor; border-left: calc(3 * var(--sg)) solid currentColor; transform: rotate(45deg); }
 .sg-trail { border-top-style: solid; opacity: 0; transform-origin: left center; transform: scaleX(0); animation: sg-trail-one 3s ease-in-out infinite; }
 .sg-hand { position: absolute; left: 0; top: 0; height: var(--sg-hand); transform: translateX(-30%) rotate(-19deg); opacity: 0; animation: sg-hand-one 3s ease-in-out infinite; }
 /* 한 방향 (왼쪽 → 오른쪽): 나타남 → 쓱 이동하며 선이 그어짐 → 사라짐 */
 @keyframes sg-hand-one { 0% { left: 0; opacity: 0; } 10% { left: 0; opacity: 1; } 20% { left: 0; opacity: 1; } 62% { left: 100%; opacity: 1; } 76% { left: 100%; opacity: 0; } 100% { left: 100%; opacity: 0; } }
 @keyframes sg-trail-one { 0% { transform: scaleX(0); opacity: 0; } 20% { transform: scaleX(0); opacity: 0.9; } 62% { transform: scaleX(1); opacity: 0.9; } 76% { transform: scaleX(1); opacity: 0; } 100% { transform: scaleX(1); opacity: 0; } }
-/* 양방향 (왼쪽 → 오른쪽 → 왼쪽) */
-.swipe-guide--both .sg-hand { animation: sg-hand-both 5.2s ease-in-out infinite; }
-.swipe-guide--both .sg-trail { animation: sg-trail-both 5.2s ease-in-out infinite; }
-@keyframes sg-hand-both { 0% { left: 0; opacity: 0; } 6% { left: 0; opacity: 1; } 12% { left: 0; opacity: 1; } 38% { left: 100%; opacity: 1; } 46% { left: 100%; opacity: 1; } 72% { left: 0; opacity: 1; } 82% { left: 0; opacity: 0; } 100% { left: 0; opacity: 0; } }
-@keyframes sg-trail-both { 0% { transform: scaleX(0); opacity: 0; } 12% { transform: scaleX(0); opacity: 0.9; } 38% { transform: scaleX(1); opacity: 0.9; } 46% { transform: scaleX(1); opacity: 0.9; } 72% { transform: scaleX(0); opacity: 0.9; } 82%, 100% { transform: scaleX(0); opacity: 0; } }
 .swipe-guide--dfn { --sg-hand: calc(80 * var(--u)); left: calc(520 * var(--u)); top: calc(746 * var(--u)); width: calc(400 * var(--u)); color: #fff; transition: opacity 0.4s ease; }
 .dfn.is-struck .swipe-guide--dfn { opacity: 0; }
 .swipe-guide--dfn .sg-hand { filter: invert(1); }   /* 어두운 배경이라 검정 선 손을 흰색으로 */
-.swipe-guide--rp { --sg: 1px; --sg-hand: 84px; left: 0; top: -170px; width: 560px; color: #111; }
 @media (prefers-reduced-motion: reduce) {
   .sg-hand { animation: none; opacity: 1; left: 50%; }
   .sg-trail { animation: none; }
 }
+
+/* ---------- 여러 개 고르는 질문(Q3~Q5): 강조된 '모두' 안내 문구 ---------- */
+.survey[data-kind="choice"] .survey__sub { font-size: calc(22 * var(--u)); }
+.survey[data-kind="choice"] .survey__sub u { font-weight: 700; text-decoration-thickness: calc(2.5 * var(--u)); text-underline-offset: calc(5 * var(--u)); }
+
+/* 결과지 뒤 'discover more' 버튼: 결과지가 나오고 9초가 지나도 누르지 않으면 숨 쉬듯 살짝 커졌다 작아지고, 손가락 커서가 다가와 버튼을 톡 눌러 보여줌 (마우스를 올리면 멈춤) */
+.rp[data-stage="3"] .rp-more { animation: rp-more-breathe 2.6s ease-in-out 9s infinite; }
+.rp[data-stage="3"] .rp-more:hover, .rp[data-stage="3"] .rp-more:focus-visible { animation: none; }
+.rp-more__hand { position: absolute; left: 50%; top: 100%; height: 50px; margin: -4px 0 0 -14px; opacity: 0; pointer-events: none; user-select: none; transform-origin: 50% 0; }
+.rp[data-stage="3"] .rp-more__hand { animation: rp-more-hand 4.6s ease-in-out 9s infinite; }
+.rp[data-stage="3"] .rp-more:hover .rp-more__hand, .rp[data-stage="3"] .rp-more:focus-visible .rp-more__hand { animation: none; opacity: 0; }
+@keyframes rp-more-breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.06); } }
+/* 손가락이 오른쪽 아래에서 다가와 → 버튼 아래쪽을 톡 누르고 → 물러남 */
+@keyframes rp-more-hand {
+  0%   { opacity: 0; transform: translate(60px, 56px) rotate(-14deg); }
+  14%  { opacity: 1; transform: translate(50px, 46px) rotate(-14deg); }
+  42%  { opacity: 1; transform: translate(0, 0) rotate(-14deg); }
+  50%  { opacity: 1; transform: translate(0, -6px) rotate(-14deg) scale(0.9); }
+  58%  { opacity: 1; transform: translate(0, 0) rotate(-14deg) scale(1); }
+  66%  { opacity: 1; transform: translate(0, -6px) rotate(-14deg) scale(0.9); }
+  74%  { opacity: 1; transform: translate(0, 0) rotate(-14deg) scale(1); }
+  90%  { opacity: 0; transform: translate(60px, 56px) rotate(-14deg); }
+  100% { opacity: 0; transform: translate(60px, 56px) rotate(-14deg); }
+}
+@media (prefers-reduced-motion: reduce) { .rp[data-stage="3"] .rp-more, .rp[data-stage="3"] .rp-more__hand { animation: none; } }
