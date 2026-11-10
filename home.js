@@ -1,8 +1,8 @@
-// 상단 archive / publication 은 지금은 자리표시 링크(#archive, #publication)입니다.
+// 상단 archive / about 은 지금은 자리표시 링크(#archive, #about)입니다.
 // 연결할 페이지가 정해지면 아래 주소만 바꾸면 됩니다.
 const LINKS = {
   'archive-btn': '#archive',
-  'publication-btn': '#publication',
+  'about-btn': '#about',
 };
 
 for (const [id, href] of Object.entries(LINKS)) {
