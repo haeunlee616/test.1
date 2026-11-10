@@ -189,34 +189,27 @@ function buildChoices(i, q) {
   choicesEl.appendChild(wrap);
 }
 
-// 색 고르기 (Q6): 스와치 + 색상판(채도·명도) + 색상 막대 + HEX 입력 — 색을 세밀하게 고를 수 있음
-// 맨 위 동그란 칸: 처음엔 비어 있고, 참여자가 그 패널에서 고른 마지막 색들이 왼쪽부터 쌓임 (최대 9개)
-// '당시'와 '지금'은 각자 따로 기록하고, 참여자가 바뀌면(페이지를 새로 열면) 비워짐
-const RECENT_MAX = 9;
-const recentColors = { then: [], now: [] };
-const recentRenderers = { then: new Set(), now: new Set() };
-function pushRecent(key, hex) {
-  const list = recentColors[key];
-  const at = list.indexOf(hex);
-  if (at !== -1) list.splice(at, 1);
-  list.unshift(hex);
-  list.length = Math.min(list.length, RECENT_MAX);
-  recentRenderers[key].forEach((fn) => fn());
-}
+// 색 고르기 (Q6): 가운데 동그라미에 지금 고른 색이 보이고, 그 둘레의 색상 고리에서 색을 고르고, 아래 막대로 밝기를 조절함 (+ HEX 입력, 스포이트)
+// '당시'와 '지금'은 각자 따로 고름
 const clamp01 = (v) => Math.min(1, Math.max(0, v));
-function hsvToHex(h, s, v) {
+const WHEEL_SIZE = 180;     // 색상 고리 전체 지름 (시안 px)
+const WHEEL_BAND = 26;      // 고리 두께
+function hslToHex(h, s, l) {
+  const a = s * Math.min(l, 1 - l);
   const f = (n) => {
-    const k = (n + h / 60) % 6;
-    return v - v * s * Math.max(0, Math.min(k, 4 - k, 1));
+    const k = (n + h / 30) % 12;
+    return l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1));
   };
-  return `#${[f(5), f(3), f(1)].map((x) => Math.round(x * 255).toString(16).padStart(2, '0')).join('')}`;
+  return `#${[f(0), f(8), f(4)].map((x) => Math.round(x * 255).toString(16).padStart(2, '0')).join('')}`;
 }
-function hexToHsv(hex) {
+function hexToHsl(hex) {
   const r = parseInt(hex.slice(1, 3), 16) / 255;
   const g = parseInt(hex.slice(3, 5), 16) / 255;
   const b = parseInt(hex.slice(5, 7), 16) / 255;
   const max = Math.max(r, g, b);
-  const d = max - Math.min(r, g, b);
+  const min = Math.min(r, g, b);
+  const d = max - min;
+  const l = (max + min) / 2;
   let h = 0;
   if (d) {
     if (max === r) h = ((g - b) / d) % 6;
@@ -225,7 +218,7 @@ function hexToHsv(hex) {
     h *= 60;
     if (h < 0) h += 360;
   }
-  return { h, s: max ? d / max : 0, v: max };
+  return { h, s: d ? d / (1 - Math.abs(2 * l - 1)) : 0, l };
 }
 const normHex = (t) => {
   let x = t.trim().replace(/^#/, '');
@@ -237,59 +230,45 @@ const EYEDROPPER_SVG = '<svg viewBox="0 0 24 24" width="100%" height="100%" aria
 function buildColors(i, q) {
   const picked = { ...(answers[i] || {}) };
   colorsEl.innerHTML = '';
-  Object.values(recentRenderers).forEach((set) => set.clear());
   q.panels.forEach((panel) => {
     const box = document.createElement('div');
     box.className = 'pc';
     box.innerHTML = `
       <div class="pc__label">${panel.label}</div>
-      <div class="pc__swatches" role="group" aria-label="최근에 고른 색"></div>
-      <div class="pc__main">
-        <div class="pc__sv" tabindex="0" role="slider" aria-label="${panel.label} 채도와 명도"><div class="pc__knob"></div></div>
-        <div class="pc__hue" tabindex="0" role="slider" aria-label="${panel.label} 색상"><div class="pc__bar"></div></div>
+      <div class="pc__wheel" tabindex="0" role="slider" aria-label="${panel.label} 색상">
+        <div class="pc__ring"></div>
+        <div class="pc__center"></div>
+        <div class="pc__thumb"></div>
       </div>
+      <div class="pc__lum" tabindex="0" role="slider" aria-label="${panel.label} 밝기"><div class="pc__lumthumb"></div></div>
       <div class="pc__hexrow">
         <button class="pc__eye" type="button" aria-label="화면에서 색 가져오기">${EYEDROPPER_SVG}</button>
         <input class="pc__hex" type="text" maxlength="7" spellcheck="false" placeholder="#E2453B" aria-label="${panel.label} HEX 색상 코드">
-        <span class="pc__chip" aria-hidden="true"></span>
       </div>`;
-    const swWrap = box.querySelector('.pc__swatches');
-    const sv = box.querySelector('.pc__sv');
-    const knob = box.querySelector('.pc__knob');
-    const hue = box.querySelector('.pc__hue');
-    const bar = box.querySelector('.pc__bar');
+    const wheel = box.querySelector('.pc__wheel');
+    const center = box.querySelector('.pc__center');
+    const thumb = box.querySelector('.pc__thumb');
+    const lum = box.querySelector('.pc__lum');
+    const lumThumb = box.querySelector('.pc__lumthumb');
     const hexIn = box.querySelector('.pc__hex');
-    const chip = box.querySelector('.pc__chip');
     const eye = box.querySelector('.pc__eye');
 
-    const state = picked[panel.key] ? { ...hexToHsv(picked[panel.key]), set: true } : { h: 8, s: 0.7, v: 0.9, set: false };
-    // 최근에 고른 색 칸: 고른 색이 있을 때만 동그라미가 생김 (누르면 그 색으로)
-    function renderRecents() {
-      swWrap.innerHTML = '';
-      const now = state.set ? hsvToHex(state.h, state.s, state.v) : null;
-      recentColors[panel.key].forEach((hex) => {
-        const b = document.createElement('button');
-        b.type = 'button';
-        b.className = 'pc__sw';
-        b.style.background = hex;
-        b.setAttribute('aria-label', `최근에 고른 색 ${hex}`);
-        b.classList.toggle('is-on', hex === now);
-        b.addEventListener('click', () => { Object.assign(state, hexToHsv(hex), { set: true }); commit(true); });
-        swWrap.appendChild(b);
-      });
-    }
-    recentRenderers[panel.key].add(renderRecents);
+    const state = picked[panel.key] ? { ...hexToHsl(picked[panel.key]), set: true } : { h: 8, s: 1, l: 0.5, set: false };
+    const hexNow = () => hslToHex(state.h, state.s, state.l);
 
     function paint(updateInput) {
-      const hex = hsvToHex(state.h, state.s, state.v);
-      sv.style.setProperty('--hue', `hsl(${state.h}, 100%, 50%)`);
-      knob.style.left = `${state.s * 100}%`;
-      knob.style.top = `${(1 - state.v) * 100}%`;
-      bar.style.top = `${(state.h / 360) * 100}%`;
+      const hex = hexNow();
+      const rad = (state.h * Math.PI) / 180;
+      const rMid = (WHEEL_SIZE - WHEEL_BAND) / 2;                     // 고리 두께의 가운데 반지름
+      thumb.style.left = `${50 + (rMid * Math.sin(rad)) / WHEEL_SIZE * 100}%`;
+      thumb.style.top = `${50 - (rMid * Math.cos(rad)) / WHEEL_SIZE * 100}%`;
+      thumb.style.background = hslToHex(state.h, 1, 0.5);
+      lum.style.background = `linear-gradient(to right, #000, ${hslToHex(state.h, state.s, 0.5)} 50%, #fff)`;
+      lumThumb.style.left = `${state.l * 100}%`;
+      lumThumb.style.background = hex;
+      center.style.background = state.set ? hex : 'transparent';
       box.classList.toggle('is-set', state.set);
-      chip.style.background = state.set ? hex : 'transparent';
       if (updateInput) hexIn.value = state.set ? hex.toUpperCase() : '';
-      [...swWrap.children].forEach((b, n) => b.classList.toggle('is-on', state.set && recentColors[panel.key][n] === hex));
       return hex;
     }
     function commit(updateInput) {
@@ -298,59 +277,62 @@ function buildColors(i, q) {
       answers[i] = { ...picked };
       updateNext();
     }
-    // 색상판·색상 막대: 누르고 끌어서 고르기
-    const drag = (el, move) => {
+    // 눌러서 끌기 (고리 위에서 시작해야 함 — 가운데 빈 곳이나 모서리는 무시)
+    const drag = (el, accept, move) => {
       el.addEventListener('pointerdown', (e) => {
+        const r0 = el.getBoundingClientRect();
+        if (!accept(e, r0)) return;
         e.preventDefault();
         el.setPointerCapture(e.pointerId);
         el.focus({ preventScroll: true });
-        const run = (ev) => { const r = el.getBoundingClientRect(); move(clamp01((ev.clientX - r.left) / r.width), clamp01((ev.clientY - r.top) / r.height)); state.set = true; commit(true); };
+        const run = (ev) => { move(ev, el.getBoundingClientRect()); state.set = true; commit(true); };
         run(e);
-        const onMove = (ev) => run(ev);
-        const end = () => { el.removeEventListener('pointermove', onMove); el.removeEventListener('pointerup', end); el.removeEventListener('pointercancel', end); pushRecent(panel.key, hsvToHex(state.h, state.s, state.v)); };
-        el.addEventListener('pointermove', onMove);
+        const end = () => { el.removeEventListener('pointermove', run); el.removeEventListener('pointerup', end); el.removeEventListener('pointercancel', end); };
+        el.addEventListener('pointermove', run);
         el.addEventListener('pointerup', end);
         el.addEventListener('pointercancel', end);
       });
     };
-    drag(sv, (x, y) => { state.s = x; state.v = 1 - y; });
-    drag(hue, (x, y) => { state.h = y * 360; });
-    // 키보드·HEX 입력은 잠깐 멈췄을 때의 색을 '고른 색'으로 기록
-    let settleTimer = null;
-    const settle = () => { clearTimeout(settleTimer); settleTimer = setTimeout(() => pushRecent(panel.key, hsvToHex(state.h, state.s, state.v)), 700); };
-    // 키보드: 화살표로 조금씩
-    sv.addEventListener('keydown', (e) => {
-      const d = { ArrowLeft: [-0.02, 0], ArrowRight: [0.02, 0], ArrowUp: [0, 0.02], ArrowDown: [0, -0.02] }[e.key];
-      if (!d) return;
-      e.preventDefault();
-      state.s = clamp01(state.s + d[0]); state.v = clamp01(state.v + d[1]); state.set = true; commit(true); settle();
+    drag(wheel, (e, r) => {
+      const d = Math.hypot(e.clientX - (r.left + r.width / 2), e.clientY - (r.top + r.height / 2)) / (r.width / 2);
+      return d <= 1.06 && d >= 1 - (WHEEL_BAND / (WHEEL_SIZE / 2)) - 0.1;
+    }, (e, r) => {
+      const ang = Math.atan2(e.clientX - (r.left + r.width / 2), -(e.clientY - (r.top + r.height / 2)));   // 위쪽이 0°, 시계 방향
+      state.h = ((ang * 180) / Math.PI + 360) % 360;
+      if (state.s < 0.25) state.s = 1;                                  // 회색에서 고리를 누르면 선명한 색으로
     });
-    hue.addEventListener('keydown', (e) => {
-      const d = { ArrowUp: -4, ArrowDown: 4 }[e.key];
+    drag(lum, () => true, (e, r) => { state.l = clamp01((e.clientX - r.left) / r.width); });
+    // 키보드: 좌우 화살표로 조금씩
+    wheel.addEventListener('keydown', (e) => {
+      const d = { ArrowLeft: -4, ArrowDown: -4, ArrowRight: 4, ArrowUp: 4 }[e.key];
       if (!d) return;
       e.preventDefault();
-      state.h = (state.h + d + 360) % 360; state.set = true; commit(true); settle();
+      state.h = (state.h + d + 360) % 360; if (state.s < 0.25) state.s = 1; state.set = true; commit(true);
+    });
+    lum.addEventListener('keydown', (e) => {
+      const d = { ArrowLeft: -0.02, ArrowDown: -0.02, ArrowRight: 0.02, ArrowUp: 0.02 }[e.key];
+      if (!d) return;
+      e.preventDefault();
+      state.l = clamp01(state.l + d); state.set = true; commit(true);
     });
     // HEX 직접 입력
     hexIn.addEventListener('input', () => {
       const hex = normHex(hexIn.value);
       if (!hex) return;
-      Object.assign(state, hexToHsv(hex), { set: true });
+      Object.assign(state, hexToHsl(hex), { set: true });
       commit(false);
-      settle();
     });
-    hexIn.addEventListener('blur', () => { if (state.set) hexIn.value = hsvToHex(state.h, state.s, state.v).toUpperCase(); });
+    hexIn.addEventListener('blur', () => { if (state.set) hexIn.value = hexNow().toUpperCase(); });
     // 스포이드: 화면의 색 가져오기 (지원하는 브라우저만)
     eye.addEventListener('click', async () => {
       if (!window.EyeDropper) { hexIn.focus(); return; }
       try {
         const r = await new window.EyeDropper().open();
         const hex = normHex(r.sRGBHex);
-        if (hex) { Object.assign(state, hexToHsv(hex), { set: true }); commit(true); pushRecent(panel.key, hex); }
+        if (hex) { Object.assign(state, hexToHsl(hex), { set: true }); commit(true); }
       } catch (e) { /* 취소 */ }
     });
 
-    renderRecents();
     paint(true);
     colorsEl.appendChild(box);
   });
@@ -655,8 +637,6 @@ function goNext() {
     else showQuestion(qi + 1);
   } else {
     finished = true;
-    recentColors.then.length = 0;   // 참여자가 끝났으니 최근 색 기록은 비움 (다음 참여자에게 보이지 않게)
-    recentColors.now.length = 0;
     setBar(qi, true);
     nextBtn.textContent = 'done ✓';
     nextBtn.disabled = true;
