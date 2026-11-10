@@ -684,3 +684,24 @@ window.lockBookView = () => { view.locked = true; view.tx = 50; view.ty = 50; };
   stageEl3d.style.setProperty('--py', `${view.y.toFixed(2)}%`);
   requestAnimationFrame(viewLoop);
 })();
+
+// ---------- 30초 동안 움직임이 없으면 첫 페이지로 ----------
+// 마우스·키보드·터치·카메라(손 움직임)로 사용자의 움직임이 30초 이상 없으면 처음 화면으로 돌아감 (다음 참여자를 위해 설문 기록도 비워짐)
+const IDLE_MS = 30000;
+let idleTimer = null;
+let lastActive = 0;
+function goBackToStart() {
+  const atStart = !opened && !document.body.classList.contains('is-archive');   // 이미 첫 화면이면 그대로 둠
+  if (atStart) { noteActivity(true); return; }
+  location.replace(location.pathname);
+}
+function noteActivity(force) {
+  const now = Date.now();
+  if (!force && now - lastActive < 400) return;      // 마우스가 계속 움직여도 부담이 없도록 잠깐씩만 갱신
+  lastActive = now;
+  clearTimeout(idleTimer);
+  idleTimer = setTimeout(goBackToStart, IDLE_MS);
+}
+window.__noteActivity = () => noteActivity();
+['pointermove', 'pointerdown', 'keydown', 'wheel', 'touchstart', 'scroll'].forEach((t) => window.addEventListener(t, () => noteActivity(), { passive: true, capture: true }));
+noteActivity(true);

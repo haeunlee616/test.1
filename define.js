@@ -172,6 +172,7 @@
         }
         const now = performance.now();
         // 손가락·손 정도 크기의 움직임만 사용 (조명이 바뀌거나 몸 전체가 흔들리면 무시)
+        if (n >= 6 && window.__noteActivity) window.__noteActivity();   // 카메라에 움직임이 있으면 '자리를 지키고 있음'으로 봄 (30초 자동 처음으로)
         if (n >= 6 && n < W * H * 0.35) hist.push({ t: now, x: 1 - sx / n / W });   // 거울 반전: 사용자의 왼쪽→오른쪽 = 0→1
         hist = hist.filter((p) => now - p.t <= SWIPE_WINDOW_MS);
         if (isRightwardSwipe(hist)) onSwipe();

@@ -594,6 +594,7 @@
 
     const root = await build(responses);
     cardWrap.append(root);
+    if (window.__noteActivity) window.__noteActivity();      // 결과지가 만들어지는 동안은 사용자가 가만히 있어도 처음으로 돌아가지 않게
     creating.textContent = `Creating ${root.nickname}'s RE:FAILURE DICTIONARY...`;
     const front = root.faces.front;
     front.photo?.classList.add('is-in');                    // 배경 사진은 결과지가 나오자마자 현상되기 시작 (AI 단어 번역을 기다리는 동안에도)
@@ -648,6 +649,7 @@
 
     // 2) 아래로 내려가 Then 칸 → Now 칸 순서로 줄이 그어지고 내용이 타이핑됨
     rp.dataset.stage = '2';
+    if (window.__noteActivity) window.__noteActivity();
     await sleep(1300);
     wipeOn(front.divider);
     fillText(root, 'interpretation', await interpPromise);
@@ -667,6 +669,7 @@
 
     // 3) 결과지가 작아지며 왼쪽으로, 오른쪽에 안내. 이제 손동작으로 뒤집어 볼 수 있음
     rp.dataset.stage = '3';
+    if (window.__noteActivity) window.__noteActivity();
     document.body.classList.add('is-result-guide');
     const bar = document.querySelector('footer.bar');
     if (bar && !bar.querySelector('.bar__side')) {
@@ -711,6 +714,7 @@
             let n = 0; let sx = 0;
             for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (Math.abs(gray[y * W + x] - prev[y * W + x]) > 28) { n++; sx += x; }
             const now = performance.now();
+            if (n >= 6 && window.__noteActivity) window.__noteActivity();      // 카메라에 움직임이 있으면 30초 자동 처음으로 타이머를 되돌림
             if (n >= 6 && n < W * H * 0.35) hist.push({ t: now, x: 1 - sx / n / W });
             hist = hist.filter((p) => now - p.t <= 1000);
             const dir = detect(hist);
