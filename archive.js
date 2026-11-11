@@ -229,7 +229,8 @@
     const head = el('h2', 'ar-headline', c1);
     head.innerHTML = 'One word cannot define<br>your entire experience.';
     const hint = el('div', 'ar-scrollhint', c1);
-    hint.innerHTML = '<span>Scroll to Explore</span><svg viewBox="0 0 20 28" width="20" height="28" aria-hidden="true"><path d="M10 1v24M2 17l8 8 8-8" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>';
+    hint.innerHTML = '<span>Scroll to Explore</span><span class="ar-scrollhint__ko">마우스 스크롤을 위로 계속 올려보세요</span>'
+      + '<svg viewBox="0 0 22 30" width="22" height="30" aria-hidden="true"><path d="M11 30V1.2M1.2 11L11 1.2 20.8 11" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>';
     const dim = el('div', 'ar-dim', s1);                         // 책 화면으로 넘어가기 직전에 어두워짐
     layer.fx = { veil, head, hint, dim };
 
